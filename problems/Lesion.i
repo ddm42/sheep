@@ -86,16 +86,16 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     type = NewmarkAccelAux
     variable = accel_x
     displacement = disp_x
+    velocity = vel_x
     beta = ${newmark_beta}
-    gamma = ${newmark_gamma}
     execute_on = timestep_end
   []
   [./accel_y]
     type = NewmarkAccelAux
     variable = accel_y
     displacement = disp_y
+    velocity = vel_y
     beta = ${newmark_beta}
-    gamma = ${newmark_gamma}
     execute_on = timestep_end
   []
   [./vel_x]

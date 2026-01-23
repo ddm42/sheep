@@ -21,8 +21,14 @@ SHEEP is a MOOSE-based application for multiphysics simulations. It's built on t
 
 ## Common Development Commands
 
+**IMPORTANT: Before running any commands, activate the moose conda environment:**
+```bash
+conda activate moose
+```
+
 ### Building
 ```bash
+conda activate moose        # Ensure moose environment is active
 make -j8                    # Build optimized version (default)
 METHOD=dbg make -j8         # Build debug version
 METHOD=oprof make -j8       # Build with profiling
@@ -30,6 +36,7 @@ METHOD=oprof make -j8       # Build with profiling
 
 ### Testing
 ```bash
+conda activate moose        # Ensure moose environment is active
 ./run_tests                 # Run all tests
 ./run_tests -j 8           # Run tests with 8 parallel jobs
 ./run_tests -i test_name   # Run specific test by name
@@ -39,6 +46,7 @@ METHOD=oprof make -j8       # Build with profiling
 
 ### Code Formatting
 ```bash
+conda activate moose        # Ensure moose environment is active
 clang-format -i src/**/*.C include/**/*.h  # Format C++ code using .clang-format
 ```
 
