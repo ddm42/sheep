@@ -1,120 +1,147 @@
 ###############################################################################
-# 2D dynamic solid mechanics with a left-boundary impulse and dashpot absorbing BCs
-#
-# Replace:
-#   - mesh.exo -> your uploaded Exodus file name
-#   - boundary IDs (1,2,3,4) -> use the sideset IDs from your mesh
-#   - impulse_region (spatial function) if you want the load only on a sub-range
-#   - material properties (E, nu, density)
-#   - dashpot_coefficient K (suggested formula below)
+# dynamic2d_aux_multi_region_B/L.i
+# 2D dynamic solid with two elastic regions: Base (B) and Lesion (L)
+# Poisson = 0.49, rho = 1000 kg/m^3
+# Base (B): mu_B = 25 kPa  -> E_B = 74_500 Pa, c_p,B ≈ 35.7071 m/s
+# Lesion (L): mu_L =100 kPa -> E_L = 298_000 Pa, c_p,L ≈ 71.4143 m/s
+# Dashpot K uses the slower wave speed (base): dashpot_K = rho * c_p,B ≈ 35707.14
 ###############################################################################
 
 [GlobalParams]
   displacements = 'disp_x disp_y'
+  # Material / pulse params
+  nu = 0.49
+  rho = 1000.0
+  # Base (B)
+  mu_B = 25000.0
+  E_B = 74500.0
+  # Lesion (L)
+  mu_L = 100000.0
+  E_L = 298000.0
+  # impulse
+  F0 = 1.0e7
+  t_imp = 1.0e-4
+  # Newmark
+  newmark_beta = 0.25
+  newmark_gamma = 0.5
+  # Dashpot K (based on base compressional speed)
+  dashpot_K = 35707.14
 []
 
 [Mesh]
-  file = mesh.exo
-  # If your mesh uses named sidesets you can use names instead of integer IDs.
+  file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+  # MOOSE will import Exodus element blocks, side sets, and node sets (you can use names or IDs).
 []
 
-[Physics/TensorMechanics/Master]
+[Physics/TensorMechanics/Dynamic]
   [all]
     add_variables = true
-    strain = SMALL            # or FINITE for large deformation
+    strain = SMALL
+    time_integration = NEWMARK
     generate_output = 'stress_xx stress_yy stress_xy total_strain_xx total_strain_yy total_strain_xy'
   []
 []
 
 [Variables]
-  # displacement variables created automatically; declare aux variables for Newmark time integrator
-  [./vel_x]
-    initial_condition = 0.0
-  []
-  [./vel_y]
-    initial_condition = 0.0
-  []
-  [./accel_x]
-    initial_condition = 0.0
-  []
-  [./accel_y]
-    initial_condition = 0.0
-  []
+  # only displacements are primary variables (created by action)
 []
 
 [AuxVariables]
   [./vel_x]
     order = FIRST
+    initial_condition = 0.0
   []
   [./vel_y]
     order = FIRST
+    initial_condition = 0.0
   []
   [./accel_x]
     order = FIRST
+    initial_condition = 0.0
   []
   [./accel_y]
     order = FIRST
+    initial_condition = 0.0
   []
 []
 
 [AuxKernels]
-  # Newmark auxiliary update kernels (implicit Newmark)
   [./accel_x]
     type = NewmarkAccelAux
     variable = accel_x
     displacement = disp_x
-    beta = 0.25
-    gamma = 0.5
-    execute_on = timestep_end
-  []
-  [./vel_x]
-    type = NewmarkVelAux
-    variable = vel_x
-    acceleration = accel_x
-    gamma = 0.5
+    beta = ${GlobalParams:newmark_beta}
+    gamma = ${GlobalParams:newmark_gamma}
     execute_on = timestep_end
   []
   [./accel_y]
     type = NewmarkAccelAux
     variable = accel_y
     displacement = disp_y
-    beta = 0.25
-    gamma = 0.5
+    beta = ${GlobalParams:newmark_beta}
+    gamma = ${GlobalParams:newmark_gamma}
+    execute_on = timestep_end
+  []
+  [./vel_x]
+    type = NewmarkVelAux
+    variable = vel_x
+    acceleration = accel_x
+    gamma = ${GlobalParams:newmark_gamma}
     execute_on = timestep_end
   []
   [./vel_y]
     type = NewmarkVelAux
     variable = vel_y
     acceleration = accel_y
-    gamma = 0.5
+    gamma = ${GlobalParams:newmark_gamma}
     execute_on = timestep_end
   []
 []
 
 [Materials]
-  [./elasticity]
+  # Base region (block=1) - softer (mu_B = 25 kPa)
+  [./elasticity_B]
     type = ComputeIsotropicElasticityTensor
-    youngs_modulus = 2.1e11     # example (Pa) — change to your material
-    poissons_ratio = 0.3
+    youngs_modulus = ${GlobalParams:E_B}
+    poissons_ratio = ${GlobalParams:nu}
+    block = 1
   []
-  [./stress]
+  [./stress_B]
     type = ComputeLinearElasticStress
+    block = 1
   []
-  [./density]
+  [./density_B]
     type = Density
-    density = 7850.0            # kg/m^3 (example) — change as needed
+    density = ${GlobalParams:rho}
+    block = 1
   []
-  # Optional: regional damping material for PML-like absorbing layer (if you add a thin layer region)
-  # You can add Rayleigh damping / viscoelastic material if desired.
+
+  # Lesion region (block=2) - stiffer (mu_L = 100 kPa)
+  [./elasticity_L]
+    type = ComputeIsotropicElasticityTensor
+    youngs_modulus = ${GlobalParams:E_L}
+    poissons_ratio = ${GlobalParams:nu}
+    block = 2
+  []
+  [./stress_L]
+    type = ComputeLinearElasticStress
+    block = 2
+  []
+  [./density_L]
+    type = Density
+    density = ${GlobalParams:rho}
+    block = 2
+  []
 []
 
 [Kernels]
-  # Inertial kernels (make inertia explicit)
+  # TensorMechanics Dynamic action adds stress-divergence kernels automatically.
+  # Inertial kernels that read accel auxvars:
   [./inertia_x]
     type = InertialForce
     variable = disp_x
     acceleration = accel_x
-    gamma = 0.5
+    gamma = ${GlobalParams:newmark_gamma}
     alpha = 0.0
     execute_on = timestep_end
   []
@@ -122,89 +149,71 @@
     type = InertialForce
     variable = disp_y
     acceleration = accel_y
-    gamma = 0.5
+    gamma = ${GlobalParams:newmark_gamma}
     alpha = 0.0
     execute_on = timestep_end
   []
-
-  # Note: TensorMechanics master action adds the stress divergence kernels automatically
 []
 
 [Functions]
-  # Time history of the impulse applied on left boundary.
-  # Example: half-sine pulse from t=0 to t=t_imp with amplitude F0 (traction magnitude)
   [./half_sine_impulse]
     type = ParsedFunction
     value = 't <= t_imp ? F0 * sin(pi * t / t_imp) : 0.0'
     args = 't F0 t_imp'
-    # We'll pass parameters via GlobalParams (see below)
   []
-  # If you prefer a Gaussian pulse:
-  # [./gauss_impulse]
-  #   type = ParsedFunction
-  #   value = 'F0 * exp(-((t-t0)*(t-t0))/(2*sigma*sigma))'
-  #   args = 't F0 t0 sigma'
-  # []
 []
 
 [BCs]
-  # 1) Left boundary: time-dependent traction (Neumann)
-  #    - boundary=1 is a placeholder for the left boundary sideset ID
-  #    - direction = 'normal' means traction applied in normal direction; you can specify vector components too
-  [./left_impulse]
+  # Left boundary: time-dependent traction (Neumann) in x-direction
+  [./left_impulse_x]
     type = NeumannBC
-    boundary = 1                       # <- REPLACE with actual left sideset ID or name
-    variable = disp_x                  # apply in x-direction if your traction is horizontal
+    boundary = 1      # <- REPLACE with left sideset ID or name from your Exodus file
+    variable = disp_x
     value_function = half_sine_impulse
-    # You can also use Vector Neumann forms to apply both components
   []
 
-  # 2) Dashpot absorbing BCs on remaining external boundaries
-  #    A DashpotBC applies traction proportional to normal velocity: t = K * (n . v)
-  #    Suggested K ~ rho * c, where c is wave speed (use c_p or appropriate wave speed).
-  [./dashpot_top]
+  # Dashpot absorbing BCs on other boundaries (both components), using base-based K
+  [./dashpot_top_x]
     type = DashpotBC
-    boundary = 2                       # <- REPLACE (top)
+    boundary = 2      # <- REPLACE with top sideset ID
     variable = disp_x
-    K = 1.0e6                          # <- TUNE: placeholder; suggested compute below
+    K = ${GlobalParams:dashpot_K}
   []
   [./dashpot_top_y]
     type = DashpotBC
     boundary = 2
     variable = disp_y
-    K = 1.0e6
+    K = ${GlobalParams:dashpot_K}
   []
-  [./dashpot_right]
+  [./dashpot_right_x]
     type = DashpotBC
-    boundary = 3                       # <- REPLACE (right)
+    boundary = 3      # <- REPLACE with right sideset ID
     variable = disp_x
-    K = 1.0e6
+    K = ${GlobalParams:dashpot_K}
   []
   [./dashpot_right_y]
     type = DashpotBC
     boundary = 3
     variable = disp_y
-    K = 1.0e6
+    K = ${GlobalParams:dashpot_K}
   []
-  [./dashpot_bottom]
+  [./dashpot_bottom_x]
     type = DashpotBC
-    boundary = 4                       # <- REPLACE (bottom)
+    boundary = 4      # <- REPLACE with bottom sideset ID
     variable = disp_x
-    K = 1.0e6
+    K = ${GlobalParams:dashpot_K}
   []
   [./dashpot_bottom_y]
     type = DashpotBC
     boundary = 4
     variable = disp_y
-    K = 1.0e6
+    K = ${GlobalParams:dashpot_K}
   []
 
-  # 3) Minimal Dirichlet constraints to eliminate rigid body motion:
-  #    Fix one corner (both x & y) and one additional DOF to avoid rotation.
-  #    Replace the boundary or node IDs below to match small sets in your mesh.
-  [./fix_corner]
+  # Minimal Dirichlet constraints (small nodesets / points) to remove rigid bodies
+  [./fix_corner_x]
     type = PresetDisplacement
-    boundary = 5                       # <- REPLACE with corner node/point sideset id or small nodeset
+    boundary = 5      # <- REPLACE with small corner nodeset/point ID
     variable = disp_x
     value = 0.0
   []
@@ -214,43 +223,36 @@
     variable = disp_y
     value = 0.0
   []
-  # If needed, fix one DOF at another small boundary to remove rigid rotation:
-  [./fix_one_dof]
+  [./fix_one_dof_y]
     type = PresetDisplacement
-    boundary = 6                       # <- REPLACE
+    boundary = 6      # <- REPLACE with another small nodeset to prevent rotation
     variable = disp_y
     value = 0.0
   []
-[]
-
-[GlobalParams]
-  # parameters for the impulse function
-  F0 = 1.0e7        # peak traction magnitude (N/m^2) — tune to your case
-  t_imp = 1e-4      # impulse duration in seconds (short)
-  # wave speed & dashpot suggestions (for reference; not automatically used by BCs)
-  E = 2.1e11
-  nu = 0.3
-  rho = 7850.0
 []
 
 [Executioner]
   type = Transient
   start_time = 0.0
   end_time = 0.01
-  dt = 1.0e-6        # time step — choose based on stability and resolution (CFL)
-  solve_type = 'nonlinear'   # dynamic problems often need nonlinear solver settings; try 'linear' if small-strain linear
+  dt = 1.0e-6
+  solve_type = 'nonlinear'
 []
 
 [Postprocessors]
-  [./node_disp_sample]
+  [./nodal_vel_x_node10]
     type = NodalVariableValue
-    nodeid = 10                  # example node number to sample; change to a node in your mesh
-    variable = disp_x
+    nodeid = 10
+    variable = vel_x
+  []
+  [./nodal_accel_x_node10]
+    type = NodalVariableValue
+    nodeid = 10
+    variable = accel_x
   []
 []
 
 [Outputs]
   exodus = true
   console = true
-  # optionally write CSV/time-series etc.
 []
