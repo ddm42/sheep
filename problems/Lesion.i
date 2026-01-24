@@ -127,8 +127,9 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     block = 1
   []
   [./density_B]
-    type = Density
-    density = ${rho}
+    type = GenericConstantMaterial
+    prop_names  = 'density'
+    prop_values = ${rho}
     block = 1
   []
 
@@ -144,8 +145,9 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     block = 2
   []
   [./density_L]
-    type = Density
-    density = ${rho}
+    type = GenericConstantMaterial
+    prop_names  = 'density'
+    prop_values = ${rho}
     block = 2
   []
 []
