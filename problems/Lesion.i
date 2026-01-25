@@ -64,12 +64,6 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
   []
 []
 
-# Variables are created automatically by the Physics/SolidMechanics/Dynamic action
-
-# AuxVariables are created automatically by the Physics/SolidMechanics/Dynamic action
-
-# AuxKernels are created automatically by the Physics/SolidMechanics/Dynamic action
-
 [Materials]
   # Base (B) - assign to block=1 (placeholder)
   [./elasticity_B]
@@ -108,7 +102,6 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
   []
 []
 
-# Kernels are created automatically by the Physics/SolidMechanics/Dynamic action
 
 [Functions]
   [./half_sine_impulse]
@@ -240,6 +233,5 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 [Outputs]
   exodus = true
   console = true
-  # if you want AuxVariables output explicitly, MOOSE outputs system will include
-  # nodal/elemental auxfields as configured. See Outputs docs.
+  # AuxVariables (vel_x, vel_y, accel_x, accel_y, stress/strain fields) are output by default
 []
