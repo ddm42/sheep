@@ -22,14 +22,14 @@ E_L = ${fparse 2.0 * mu_L * (1.0 + nu)}
 
 # Lame's first parameter: lambda = E*nu / ((1+nu)(1-2nu))
 lambda_B = ${fparse (E_B * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu))}
-lambda_L = ${fparse (E_L * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu))}
+# lambda_L = ${fparse (E_L * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu))}
 
 # Wave speeds: c_p = sqrt((lambda + 2*mu) / rho), c_s = sqrt(mu / rho)
 c_p_B = ${fparse sqrt( (lambda_B + 2.0 * mu_B) / rho )}
-c_s_B = ${fparse sqrt( mu_B / rho )}
+# c_s_B = ${fparse sqrt( mu_B / rho )}
 
-c_p_L = ${fparse sqrt( (lambda_L + 2.0 * mu_L) / rho )}
-c_s_L = ${fparse sqrt( mu_L / rho )}
+# c_p_L = ${fparse sqrt( (lambda_L + 2.0 * mu_L) / rho )}
+# c_s_L = ${fparse sqrt( mu_L / rho )}
 
 # Dashpot K: use base/slower c_p_B as you requested
 dashpot_K = ${fparse rho * c_p_B}
@@ -45,74 +45,30 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 # -------------------------
 # Mesh and physics
 # -------------------------
-[Mesh]
-  file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+[GlobalParams]
+  displacements = 'disp_x disp_y'
 []
 
-[Physics/TensorMechanics/Dynamic]
+[Mesh]
+  file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+  construct_side_list_from_node_list = true
+[]
+
+[Physics/SolidMechanics/Dynamic]
   [all]
     add_variables = true
     strain = SMALL
-    time_integration = NEWMARK
-    generate_output = 'stress_xx stress_yy stress_xy total_strain_xx total_strain_yy total_strain_xy'
+    newmark_beta = ${newmark_beta}
+    newmark_gamma = ${newmark_gamma}
+    generate_output = 'stress_xx stress_yy stress_xy strain_xx strain_yy strain_xy'
   []
 []
 
-[Variables]
-  # Primary displacement variables are created automatically by add_variables=true
-[]
+# Variables are created automatically by the Physics/SolidMechanics/Dynamic action
 
-[AuxVariables]
-  [./vel_x]
-    order = FIRST
-    initial_condition = 0.0
-  []
-  [./vel_y]
-    order = FIRST
-    initial_condition = 0.0
-  []
-  [./accel_x]
-    order = FIRST
-    initial_condition = 0.0
-  []
-  [./accel_y]
-    order = FIRST
-    initial_condition = 0.0
-  []
-[]
+# AuxVariables are created automatically by the Physics/SolidMechanics/Dynamic action
 
-[AuxKernels]
-  [./accel_x]
-    type = NewmarkAccelAux
-    variable = accel_x
-    displacement = disp_x
-    velocity = vel_x
-    beta = ${newmark_beta}
-    execute_on = timestep_end
-  []
-  [./accel_y]
-    type = NewmarkAccelAux
-    variable = accel_y
-    displacement = disp_y
-    velocity = vel_y
-    beta = ${newmark_beta}
-    execute_on = timestep_end
-  []
-  [./vel_x]
-    type = NewmarkVelAux
-    variable = vel_x
-    acceleration = accel_x
-    gamma = ${newmark_gamma}
-    execute_on = timestep_end
-  []
-  [./vel_y]
-    type = NewmarkVelAux
-    variable = vel_y
-    acceleration = accel_y
-    gamma = ${newmark_gamma}
-    execute_on = timestep_end
-  []
-[]
+# AuxKernels are created automatically by the Physics/SolidMechanics/Dynamic action
 
 [Materials]
   # Base (B) - assign to block=1 (placeholder)
@@ -152,98 +108,109 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
   []
 []
 
-[Kernels]
-  # Inertial kernels read accel auxvariables (one per component)
-  [./inertia_x]
-    type = InertialForce
-    variable = disp_x
-    acceleration = accel_x
-    gamma = ${newmark_gamma}
-    alpha = 0.0
-    execute_on = timestep_end
-  []
-  [./inertia_y]
-    type = InertialForce
-    variable = disp_y
-    acceleration = accel_y
-    gamma = ${newmark_gamma}
-    alpha = 0.0
-    execute_on = timestep_end
-  []
-  # Stress divergence kernels are created automatically by the TensorMechanics action.
-[]
+# Kernels are created automatically by the Physics/SolidMechanics/Dynamic action
 
 [Functions]
   [./half_sine_impulse]
     type = ParsedFunction
-    value = 't <= ${t_imp} ? ${F0} * sin(pi * t / ${t_imp}) : 0.0'
-    args = 't F0 t_imp'
+    expression = 'if(t <= ${t_imp}, ${F0} * sin(pi * t / ${t_imp}), 0.0)'
   []
 []
 
 [BCs]
-  # Left boundary: time-dependent Neumann traction (x-component)
+  # Aperture boundary: time-dependent Neumann traction (x-component)
   [./left_impulse_x]
     type = NeumannBC
-    boundary = 1       # <- REPLACE with your left sideset ID or name
+    boundary = 10      # sideset 10 (aperture)
     variable = disp_x
-    value_function = half_sine_impulse
+    function = half_sine_impulse
   []
 
   # Dashpot absorbing BCs on other boundaries using base K (both components)
   [./dashpot_top_x]
     type = DashpotBC
-    boundary = 2       # <- REPLACE with top sideset ID
+    boundary = 1       # sideset 1 (top)
     variable = disp_x
-    K = ${dashpot_K}
+    component = 0      # x-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
   []
   [./dashpot_top_y]
     type = DashpotBC
-    boundary = 2
+    boundary = 1       # sideset 1 (top)
     variable = disp_y
-    K = ${dashpot_K}
+    component = 1      # y-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
   []
   [./dashpot_right_x]
     type = DashpotBC
-    boundary = 3       # <- REPLACE with right sideset ID
+    boundary = 2       # sideset 2 (right)
     variable = disp_x
-    K = ${dashpot_K}
+    component = 0      # x-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
   []
   [./dashpot_right_y]
     type = DashpotBC
-    boundary = 3
+    boundary = 2       # sideset 2 (right)
     variable = disp_y
-    K = ${dashpot_K}
+    component = 1      # y-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
   []
   [./dashpot_bottom_x]
     type = DashpotBC
-    boundary = 4       # <- REPLACE with bottom sideset ID
+    boundary = 3       # sideset 3 (bottom)
     variable = disp_x
-    K = ${dashpot_K}
+    component = 0      # x-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
   []
   [./dashpot_bottom_y]
     type = DashpotBC
-    boundary = 4
+    boundary = 3       # sideset 3 (bottom)
     variable = disp_y
-    K = ${dashpot_K}
+    component = 1      # y-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
+  []
+  [./dashpot_left_x]
+    type = DashpotBC
+    boundary = 4       # sideset 4 (leftnotaperture)
+    variable = disp_x
+    component = 0      # x-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
+  []
+  [./dashpot_left_y]
+    type = DashpotBC
+    boundary = 4       # sideset 4 (leftnotaperture)
+    variable = disp_y
+    component = 1      # y-component
+    disp_x = disp_x
+    disp_y = disp_y
+    coefficient = ${dashpot_K}
   []
 
-  # Minimal Dirichlet constraints (small nodesets / points) to remove rigid bodies
+  # Fix one corner to prevent rigid body motion
+  # Use bottom-right corner (intersection of bottom and right boundaries)
   [./fix_corner_x]
-    type = PresetDisplacement
-    boundary = 5       # <- small corner nodeset/point ID
+    type = DirichletBC
+    boundary = '3'     # nodeset 3 (bottom)
     variable = disp_x
     value = 0.0
   []
   [./fix_corner_y]
-    type = PresetDisplacement
-    boundary = 5
-    variable = disp_y
-    value = 0.0
-  []
-  [./fix_one_dof_y]
-    type = PresetDisplacement
-    boundary = 6       # <- another small nodeset to prevent rotation
+    type = DirichletBC
+    boundary = '3'     # nodeset 3 (bottom) 
     variable = disp_y
     value = 0.0
   []
@@ -252,9 +219,9 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 [Executioner]
   type = Transient
   start_time = 0.0
-  end_time = 0.01
+  end_time = 3.0e-6  # .01
   dt = 1.0e-6
-  solve_type = 'nonlinear'
+  solve_type = 'PJFNK'
 []
 
 [Postprocessors]
