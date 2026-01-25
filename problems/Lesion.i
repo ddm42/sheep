@@ -113,7 +113,7 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 [BCs]
   # Aperture boundary: time-dependent Neumann traction (x-component)
   [./left_impulse_x]
-    type = NeumannBC
+    type = FunctionNeumannBC
     boundary = 10      # sideset 10 (aperture)
     variable = disp_x
     function = half_sine_impulse
