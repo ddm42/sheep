@@ -50,7 +50,24 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 []
 
 [Mesh]
-  file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+  [file]
+    type = FileMeshGenerator
+    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+  []
+  [bottom_left_nodeset]
+    type = BoundingBoxNodeSetGenerator
+    input = file
+    new_boundary = 'bottom_left_corner'
+    bottom_left = '-0.001 -0.001 0'     # Small box around bottom-left
+    top_right = '0.001 0.001 0'         # Adjust coordinates as needed
+  []
+  [bottom_right_nodeset]
+    type = BoundingBoxNodeSetGenerator
+    input = bottom_left_nodeset
+    new_boundary = 'bottom_right_corner'
+    bottom_left = '0.999 -0.001 0'      # Small box around bottom-right
+    top_right = '1.001 0.001 0'         # Adjust coordinates as needed  
+  []
   construct_side_list_from_node_list = true
 []
 
@@ -193,18 +210,25 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     coefficient = ${dashpot_K}
   []
 
-  # Fix one corner to prevent rigid body motion
-  # Use bottom-right corner (intersection of bottom and right boundaries)
+  # Prevent rigid body motion: fix one point completely, constrain second point in one direction
+  # Fix bottom-left corner completely (prevents translation)
   [./fix_corner_x]
     type = DirichletBC
-    boundary = '3'     # nodeset 3 (bottom)
+    boundary = 'bottom_left_corner'
     variable = disp_x
     value = 0.0
   []
   [./fix_corner_y]
     type = DirichletBC
-    boundary = '3'     # nodeset 3 (bottom) 
+    boundary = 'bottom_left_corner' 
     variable = disp_y
+    value = 0.0
+  []
+  # Fix bottom-right corner in x-direction only (prevents rotation)
+  [./fix_rotation_x]
+    type = DirichletBC
+    boundary = 'bottom_right_corner'
+    variable = disp_x
     value = 0.0
   []
 []
