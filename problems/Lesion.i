@@ -42,6 +42,12 @@ newmark_gamma = 0.5
 F0 = ${units 1e7 N/m^2 -> Pa}       # peak traction magnitude (ex: 1e7 Pa)
 t_imp = ${units 1e-4 s -> s}        # impulse duration
 
+# Body force region definition
+epsilon_f = 0.1                     # half-width of body force region
+x_center = -10                      # x-coordinate center of force region
+z_min = 20                          # minimum z-coordinate of force region
+z_max = 30                          # maximum z-coordinate of force region
+
 # -------------------------
 # Mesh and physics
 # -------------------------
@@ -69,6 +75,22 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     top_right = '30.001 0.001 0.001'          # At (30, 0, 0)
   []
   construct_side_list_from_node_list = true
+[]
+
+[Functions]
+  [./body_masked_time]
+    type = ParsedFunction
+    # Body force applied in parametric region
+    expression = 'if(t <= t_imp, if(x >= (x_center - epsilon_f), if(x <= (x_center + epsilon_f), if(z >= z_min, if(z <= z_max, F0 * sin(pi * t / t_imp), 0), 0), 0), 0), 0)'
+    symbol_names = 't_imp F0 epsilon_f x_center z_min z_max'
+    symbol_values = '${t_imp} ${F0} ${epsilon_f} ${x_center} ${z_min} ${z_max}'
+  []
+  [./half_sine_impulse]
+    type = ParsedFunction  
+    expression = 'if(t <= t_imp, F0 * sin(pi * t / t_imp), 0.0)'
+    symbol_names = 't_imp F0'
+    symbol_values = '${t_imp} ${F0}'
+  []
 []
 
 [Physics/SolidMechanics/Dynamic]
@@ -119,22 +141,18 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
   []
 []
 
-
-[Functions]
-  [./half_sine_impulse]
-    type = ParsedFunction
-    expression = 'if(t <= ${t_imp}, ${F0} * sin(pi * t / ${t_imp}), 0.0)'
+[Kernels]
+  [./body_force_x_masked]
+    type = BodyForce
+    variable = disp_x
+    function = body_masked_time
   []
 []
 
 [BCs]
-  # Aperture boundary: time-dependent Neumann traction (x-component)
-  [./left_impulse_x]
-    type = FunctionNeumannBC
-    boundary = 10      # sideset 10 (aperture)
-    variable = disp_x
-    function = half_sine_impulse
-  []
+  # Body force replaces aperture boundary Neumann BC
+  # Region: z_range=[z_min,z_max], x_range=[x_center±epsilon_f]
+  # Original: FunctionNeumannBC on boundary 10 (aperture) - now replaced by body force
 
   # Dashpot absorbing BCs on all rectangle sides using base K (both components)
   [./dashpot_minz_side_x]
@@ -261,7 +279,11 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 []
 
 [Outputs]
-  exodus = true
+  [./exodus]
+    type = Exodus
+    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/lesion"
+  []
   console = true
+  append_date = true
   # AuxVariables (vel_x, vel_y, accel_x, accel_y, stress/strain fields) are output by default
 []
