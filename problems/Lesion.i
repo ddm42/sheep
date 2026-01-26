@@ -13,8 +13,8 @@ nu = 0.49
 rho = 1000.0  # kg/m^3
 
 # Shear moduli (convert from kPa to Pa)
-mu_B = 25000.0   # Base (B): 25 kPa = 25000 Pa
-mu_L = 100000.0  # Lesion (L): 100 kPa = 100000 Pa
+mu_B = 4000.0   # Base (B)
+mu_L = 25000.0  # Lesion (L)
 
 # Compute Young's modulus E = 2 * mu * (1 + nu)
 E_B = ${fparse 2.0 * mu_B * (1.0 + nu)}
@@ -38,9 +38,9 @@ dashpot_K = ${fparse rho * c_p_B}
 newmark_beta = 0.25
 newmark_gamma = 0.5
 
-# Impulse definition (human-friendly units)
-F0 = ${units 1e7 N/m^2 -> Pa}       # peak traction magnitude (ex: 1e7 Pa)
-t_imp = ${units 1e-4 s -> s}        # impulse duration
+# Impulse definition (body force - units are N/m^3)
+F0 = 400                          # peak body force magnitude (N/m^3) - line source impulse - Peak shear stress should be << μ for small strain
+t_imp = 1.0e-3                      # impulse duration (1 ms) - short pulse for S-waves
 
 # Body force region definition
 epsilon_f = 0.1                     # half-width of body force region
@@ -58,21 +58,21 @@ z_max = 30                          # maximum z-coordinate of force region
 [Mesh]
   [file]
     type = FileMeshGenerator
-    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu-h.25mm.e"
   []
   [minx_minz_nodeset]
     type = BoundingBoxNodeSetGenerator
     input = file
     new_boundary = 'minx_minz_corner'
-    bottom_left = '-30.001 -0.001 -0.001'     # Small box around minx-minz corner
-    top_right = '-29.999 0.001 0.001'         # At (-30, 0, 0)
+    bottom_left = '-30.001 -0.001 14.999'     # Small box around minx-minz corner
+    top_right = '-29.999 0.001 15.001'        # At (-30, 0, 15)
   []
   [maxx_minz_nodeset]
     type = BoundingBoxNodeSetGenerator
     input = minx_minz_nodeset
     new_boundary = 'maxx_minz_corner'
-    bottom_left = '29.999 -0.001 -0.001'      # Small box around maxx-minz corner
-    top_right = '30.001 0.001 0.001'          # At (30, 0, 0)
+    bottom_left = '29.999 -0.001 14.999'      # Small box around maxx-minz corner
+    top_right = '30.001 0.001 15.001'         # At (30, 0, 15)
   []
   construct_side_list_from_node_list = true
 []
@@ -260,8 +260,8 @@ z_max = 30                          # maximum z-coordinate of force region
 [Executioner]
   type = Transient
   start_time = 0.0
-  end_time = 3.0e-6  # .01
-  dt = 1.0e-6
+  end_time = 15e-3                # 15e-3 ; time to reach edge of imaging region 
+  dt = .25e-3                       # .25e-3 ; chosen so f_s = 4*f_max ; f_max=1000 Hz <- max frequency of interest
   solve_type = 'PJFNK'
 []
 
