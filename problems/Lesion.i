@@ -46,7 +46,7 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
 # Mesh and physics
 # -------------------------
 [GlobalParams]
-  displacements = 'disp_x disp_y'
+  displacements = 'disp_x disp_z'
 []
 
 [Mesh]
@@ -54,19 +54,19 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     type = FileMeshGenerator
     file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
   []
-  [bottom_left_nodeset]
+  [minx_minz_nodeset]
     type = BoundingBoxNodeSetGenerator
     input = file
-    new_boundary = 'bottom_left_corner'
-    bottom_left = '-0.001 -0.001 0'     # Small box around bottom-left
-    top_right = '0.001 0.001 0'         # Adjust coordinates as needed
+    new_boundary = 'minx_minz_corner'
+    bottom_left = '-30.001 -0.001 -0.001'     # Small box around minx-minz corner
+    top_right = '-29.999 0.001 0.001'         # At (-30, 0, 0)
   []
-  [bottom_right_nodeset]
+  [maxx_minz_nodeset]
     type = BoundingBoxNodeSetGenerator
-    input = bottom_left_nodeset
-    new_boundary = 'bottom_right_corner'
-    bottom_left = '0.999 -0.001 0'      # Small box around bottom-right
-    top_right = '1.001 0.001 0'         # Adjust coordinates as needed  
+    input = minx_minz_nodeset
+    new_boundary = 'maxx_minz_corner'
+    bottom_left = '29.999 -0.001 -0.001'      # Small box around maxx-minz corner
+    top_right = '30.001 0.001 0.001'          # At (30, 0, 0)
   []
   construct_side_list_from_node_list = true
 []
@@ -136,99 +136,105 @@ t_imp = ${units 1e-4 s -> s}        # impulse duration
     function = half_sine_impulse
   []
 
-  # Dashpot absorbing BCs on other boundaries using base K (both components)
-  [./dashpot_top_x]
+  # Dashpot absorbing BCs on all rectangle sides using base K (both components)
+  [./dashpot_minz_side_x]
     type = DashpotBC
-    boundary = 1       # sideset 1 (top)
+    boundary = 1       # sideset 1 (minz side)
     variable = disp_x
     component = 0      # x-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_top_y]
+  [./dashpot_minz_side_z]
     type = DashpotBC
-    boundary = 1       # sideset 1 (top)
-    variable = disp_y
-    component = 1      # y-component
+    boundary = 1       # sideset 1 (minz side)
+    variable = disp_z
+    component = 1      # z-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_right_x]
+  [./dashpot_maxx_side_x]
     type = DashpotBC
-    boundary = 2       # sideset 2 (right)
+    boundary = 2       # sideset 2 (maxx side)
     variable = disp_x
     component = 0      # x-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_right_y]
+  [./dashpot_maxx_side_z]
     type = DashpotBC
-    boundary = 2       # sideset 2 (right)
-    variable = disp_y
-    component = 1      # y-component
+    boundary = 2       # sideset 2 (maxx side)
+    variable = disp_z
+    component = 1      # z-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_bottom_x]
+  [./dashpot_maxz_side_x]
     type = DashpotBC
-    boundary = 3       # sideset 3 (bottom)
+    boundary = 3       # sideset 3 (maxz side)
     variable = disp_x
     component = 0      # x-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_bottom_y]
+  [./dashpot_maxz_side_z]
     type = DashpotBC
-    boundary = 3       # sideset 3 (bottom)
-    variable = disp_y
-    component = 1      # y-component
+    boundary = 3       # sideset 3 (maxz side)
+    variable = disp_z
+    component = 1      # z-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_left_x]
+  [./dashpot_minx_side_x]
     type = DashpotBC
-    boundary = 4       # sideset 4 (leftnotaperture)
+    boundary = 4       # sideset 4 (minx side)
     variable = disp_x
     component = 0      # x-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
-  [./dashpot_left_y]
+  [./dashpot_minx_side_z]
     type = DashpotBC
-    boundary = 4       # sideset 4 (leftnotaperture)
-    variable = disp_y
-    component = 1      # y-component
+    boundary = 4       # sideset 4 (minx side)
+    variable = disp_z
+    component = 1      # z-component
     disp_x = disp_x
-    disp_y = disp_y
+    disp_z = disp_z
     coefficient = ${dashpot_K}
   []
 
-  # Prevent rigid body motion: fix one point completely, constrain second point in one direction
-  # Fix bottom-left corner completely (prevents translation)
-  [./fix_corner_x]
+  # Fix corner nodes for rigid body motion prevention
+  # Fix minx-minz corner at (-30,0) - both x and z
+  [./fix_minx_minz_corner_x]
     type = DirichletBC
-    boundary = 'bottom_left_corner'
+    boundary = 'minx_minz_corner'
     variable = disp_x
     value = 0.0
   []
-  [./fix_corner_y]
+  [./fix_minx_minz_corner_z]
     type = DirichletBC
-    boundary = 'bottom_left_corner' 
-    variable = disp_y
+    boundary = 'minx_minz_corner' 
+    variable = disp_z
     value = 0.0
   []
-  # Fix bottom-right corner in x-direction only (prevents rotation)
-  [./fix_rotation_x]
+  # Fix maxx-minz corner at (30,0) - both x and z
+  [./fix_maxx_minz_corner_x]
     type = DirichletBC
-    boundary = 'bottom_right_corner'
+    boundary = 'maxx_minz_corner'
     variable = disp_x
+    value = 0.0
+  []
+  [./fix_maxx_minz_corner_z]
+    type = DirichletBC
+    boundary = 'maxx_minz_corner'
+    variable = disp_z
     value = 0.0
   []
 []
