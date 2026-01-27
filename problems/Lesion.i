@@ -85,12 +85,6 @@ z_max = 30                          # maximum z-coordinate of force region
     symbol_names = 't_imp F0 epsilon_f x_center z_min z_max'
     symbol_values = '${t_imp} ${F0} ${epsilon_f} ${x_center} ${z_min} ${z_max}'
   []
-  [./half_sine_impulse]
-    type = ParsedFunction  
-    expression = 'if(t <= t_imp, F0 * sin(pi * t / t_imp), 0.0)'
-    symbol_names = 't_imp F0'
-    symbol_values = '${t_imp} ${F0}'
-  []
 []
 
 [Physics/SolidMechanics/Dynamic]
@@ -99,7 +93,7 @@ z_max = 30                          # maximum z-coordinate of force region
     strain = SMALL
     newmark_beta = ${newmark_beta}
     newmark_gamma = ${newmark_gamma}
-    generate_output = 'stress_xx stress_yy stress_xy strain_xx strain_yy strain_xy'
+    generate_output = 'stress_xx stress_zz stress_xz strain_xx strain_zz strain_xz'
   []
 []
 
@@ -141,10 +135,62 @@ z_max = 30                          # maximum z-coordinate of force region
   []
 []
 
+[AuxVariables]
+  [./vel_x]
+    order = FIRST
+    family = LAGRANGE
+  []
+  [./vel_z]
+    order = FIRST
+    family = LAGRANGE
+  []
+  [./accel_x]
+    order = FIRST
+    family = LAGRANGE
+  []
+  [./accel_z]
+    order = FIRST
+    family = LAGRANGE
+  []
+[]
+
+[AuxKernels]
+  [./vel_x]
+    type = NewmarkVelAux
+    variable = vel_x
+    acceleration = accel_x
+    gamma = ${newmark_gamma}
+    execute_on = timestep_end
+  []
+  [./vel_z]
+    type = NewmarkVelAux
+    variable = vel_z
+    acceleration = accel_z
+    gamma = ${newmark_gamma}
+    execute_on = timestep_end
+  []
+  [./accel_x]
+    type = NewmarkAccelAux
+    variable = accel_x
+    displacement = disp_x
+    velocity = vel_x
+    beta = ${newmark_beta}
+    execute_on = timestep_end
+  []
+  [./accel_z]
+    type = NewmarkAccelAux
+    variable = accel_z
+    displacement = disp_z
+    velocity = vel_z
+    beta = ${newmark_beta}
+    execute_on = timestep_end
+  []
+[]
+
 [Kernels]
-  [./body_force_x_masked]
+  [./body_force_z_masked]
     type = BodyForce
-    variable = disp_x
+    variable = disp_z
     function = body_masked_time
   []
 []
@@ -265,25 +311,15 @@ z_max = 30                          # maximum z-coordinate of force region
   solve_type = 'PJFNK'
 []
 
-[Postprocessors]
-  [./nodal_vel_x_node10]
-    type = NodalVariableValue
-    nodeid = 10
-    variable = vel_x
-  []
-  [./nodal_accel_x_node10]
-    type = NodalVariableValue
-    nodeid = 10
-    variable = accel_x
-  []
-[]
 
 [Outputs]
   [./exodus]
     type = Exodus
     file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/lesion"
+    show = 'disp_x disp_z vel_x vel_z accel_x accel_z stress_xx stress_zz stress_xz strain_xx strain_zz strain_xz'
+    execute_on = 'timestep_end'
   []
   console = true
   append_date = true
-  # AuxVariables (vel_x, vel_y, accel_x, accel_y, stress/strain fields) are output by default
+  # AuxVariables explicitly included in output for ParaView visualization
 []
