@@ -12,7 +12,7 @@
 nu = 0.49
 rho = 1000.0  # kg/m^3
 
-# Shear moduli (convert from kPa to Pa)
+# Shear moduli (Pa) - values in SI units
 mu_B = 4000.0   # Base (B)
 mu_L = 25000.0  # Lesion (L)
 
@@ -43,10 +43,10 @@ F0 = 400                          # peak body force magnitude (N/m^3) - line sou
 t_imp = 1.0e-3                      # impulse duration (1 ms) - short pulse for S-waves
 
 # Body force region definition
-epsilon_f = 0.1                     # half-width of body force region
-x_center = -10                      # x-coordinate center of force region
-z_min = 20                          # minimum z-coordinate of force region
-z_max = 30                          # maximum z-coordinate of force region
+epsilon_f = 0.0001                     # half-width of body force region (m)
+x_center = -0.01                      # x-coordinate center of force region (m)
+z_min = 0.02                          # minimum z-coordinate of force region (m)
+z_max = 0.03                          # maximum z-coordinate of force region (m)
 
 # -------------------------
 # Mesh and physics
@@ -58,21 +58,21 @@ z_max = 30                          # maximum z-coordinate of force region
 [Mesh]
   [file]
     type = FileMeshGenerator
-    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu-h.25mm.e"
+    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
   []
   [minx_minz_nodeset]
     type = BoundingBoxNodeSetGenerator
     input = file
     new_boundary = 'minx_minz_corner'
-    bottom_left = '-30.001 -0.001 14.999'     # Small box around minx-minz corner
-    top_right = '-29.999 0.001 15.001'        # At (-30, 0, 15)
+    bottom_left = '-0.030001 -0.000001 0.014999'     # Small box around minx-minz corner
+    top_right = '-0.029999 0.000001 0.015001'        # At (-0.03, 0, 0.015)
   []
   [maxx_minz_nodeset]
     type = BoundingBoxNodeSetGenerator
     input = minx_minz_nodeset
     new_boundary = 'maxx_minz_corner'
-    bottom_left = '29.999 -0.001 14.999'      # Small box around maxx-minz corner
-    top_right = '30.001 0.001 15.001'         # At (30, 0, 15)
+    bottom_left = '0.029999 -0.000001 0.014999'      # Small box around maxx-minz corner
+    top_right = '0.030001 0.000001 0.015001'         # At (0.03, 0, 0.015)
   []
   construct_side_list_from_node_list = true
 []
