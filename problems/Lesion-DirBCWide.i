@@ -39,7 +39,7 @@ t_imp = 1.0e-3                      # impulse duration (1 ms) - short pulse for 
 
 # Body force region definition
 epsilon_f = 0.0001                     # half-width of body force region (m)
-x_center = -0.01                      # x-coordinate center of force region (m)
+x_center = 0                      # x-coordinate center of force region (m)
 z_min = 0.02                          # minimum z-coordinate of force region (m)
 z_max = 0.03                          # maximum z-coordinate of force region (m)
 
