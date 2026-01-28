@@ -6,6 +6,9 @@
 # -------------------------
 # Top-level parameter definitions (evaluated before the rest of the file)
 # -------------------------
+# File naming
+filename = "Lesion_h2.50mm"
+
 # Basic material constants (human-friendly input)
 nu = 0.49
 rho = 1000.0  # kg/m^3
@@ -53,7 +56,7 @@ z_max = 0.035                          # maximum z-coordinate of force region (m
 [Mesh]
   [file]
     type = FileMeshGenerator
-    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/Lesion_h2.50mm.e"
+    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/${filename}.e"
   []
   construct_side_list_from_node_list = true
 []
@@ -261,13 +264,13 @@ z_max = 0.035                          # maximum z-coordinate of force region (m
 [Outputs]
   [./exodus]
     type = Exodus
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/lesion2"
+    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/${filename}"
     show = 'disp_x disp_z vel_x vel_z accel_x accel_z stress_xx stress_zz stress_xz strain_xx strain_zz strain_xz strain_energy_density'
     execute_on = 'timestep_end'
   []
   [./csv]
     type = CSV
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/lesion2"
+    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/${filename}"
   []
   console = true
   append_date = true
