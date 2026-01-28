@@ -265,6 +265,10 @@ z_max = 0.035                          # maximum z-coordinate of force region (m
     show = 'disp_x disp_z vel_x vel_z accel_x accel_z stress_xx stress_zz stress_xz strain_xx strain_zz strain_xz strain_energy_density'
     execute_on = 'timestep_end'
   []
+  [./csv]
+    type = CSV
+    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/lesion2"
+  []
   console = true
   append_date = true
   # AuxVariables explicitly included in output for ParaView visualization
