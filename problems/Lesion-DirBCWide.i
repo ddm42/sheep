@@ -240,7 +240,7 @@ z_max = 0.03                          # maximum z-coordinate of force region (m)
   type = Transient
   start_time = 0.0
   end_time = 15e-3                # 15e-3 ; time to reach edge of imaging region 
-  dt = .05e-3                       # .25e-3 ; chosen so f_s = 4*f_max ; f_max=1000 Hz <- max frequency of interest
+  dt = .25e-3                       # .25e-3 ; chosen so f_s = 4*f_max ; f_max=1000 Hz <- max frequency of interest
   solve_type = 'PJFNK'
 []
 
