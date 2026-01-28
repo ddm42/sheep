@@ -11,8 +11,8 @@ nu = 0.49
 rho = 1000.0  # kg/m^3
 
 # Shear moduli (Pa) - values in SI units
-mu_B = 4000.0   # Base (B)
-mu_L = 25000.0  # Lesion (L)
+mu_B = 25000.0   # Base (B)
+mu_L = 100000.0  # Lesion (L)
 
 # Compute Young's modulus E = 2 * mu * (1 + nu)
 E_B = ${fparse 2.0 * mu_B * (1.0 + nu)}
@@ -53,7 +53,7 @@ z_max = 0.035                          # maximum z-coordinate of force region (m
 [Mesh]
   [file]
     type = FileMeshGenerator
-    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/EllipInclu.e"
+    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/Lesion_h2.50mm.e"
   []
   construct_side_list_from_node_list = true
 []
