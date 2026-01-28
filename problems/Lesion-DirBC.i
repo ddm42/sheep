@@ -114,6 +114,13 @@ z_max = 0.035                          # maximum z-coordinate of force region (m
     prop_values = ${rho}
     block = 2
   []
+
+  # Strain energy density material for both blocks
+  [./strain_energy_density]
+    type = StrainEnergyDensity
+    incremental = false
+    outputs = exodus
+  []
 []
 
 [AuxVariables]
@@ -244,12 +251,18 @@ z_max = 0.035                          # maximum z-coordinate of force region (m
   solve_type = 'PJFNK'
 []
 
+[Postprocessors]
+  [strain_energy]
+    type = ElementIntegralMaterialProperty
+    mat_prop = strain_energy_density
+  []
+[]
 
 [Outputs]
   [./exodus]
     type = Exodus
     file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/lesion2"
-    show = 'disp_x disp_z vel_x vel_z accel_x accel_z stress_xx stress_zz stress_xz strain_xx strain_zz strain_xz'
+    show = 'disp_x disp_z vel_x vel_z accel_x accel_z stress_xx stress_zz stress_xz strain_xx strain_zz strain_xz strain_energy_density'
     execute_on = 'timestep_end'
   []
   console = true
