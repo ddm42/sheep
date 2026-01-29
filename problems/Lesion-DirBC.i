@@ -6,7 +6,7 @@
 # -------------------------
 # Top-level parameter definitions (evaluated before the rest of the file)
 # -------------------------
-# File naming
+# File naming (can be overridden from command line)
 filename = "Lesion_h2.50mm"
 
 # Basic material constants (human-friendly input)
