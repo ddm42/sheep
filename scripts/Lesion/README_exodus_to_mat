@@ -1,0 +1,8 @@
+# 1) resample with pvpython (ParaView)
+pvpython resample_exodus_to_vti.py
+
+# 2) convert to .mat
+python vti_to_mat.py
+
+# 3) Load in MATLAB
+# >> data = load('velocity_resampled.mat'); V = data.velocity;
