@@ -1,5 +1,5 @@
 ###############################################################################
-# Lesion2.i  -- MOOSE input with homogeneous Dirichlet BCs on all edges
+# Lesion-DirBC.i  -- MOOSE input with homogeneous Dirichlet BCs on all edges
 # Based on Lesion.i but with fixed boundaries instead of dashpot absorbing BCs
 ###############################################################################
 
