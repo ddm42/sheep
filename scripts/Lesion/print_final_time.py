@@ -7,7 +7,7 @@ Usage:
 """
 
 import sys
-from scipy.io import netcdf
+from scipy.io import netcdf_file
 
 def main():
     if len(sys.argv) < 2:
@@ -16,7 +16,7 @@ def main():
 
     filepath = sys.argv[1]
 
-    with netcdf.netcdf_file(filepath, 'r', mmap=False) as f:
+    with netcdf_file(filepath, 'r', mmap=False) as f:
         times = f.variables['time_whole'].data
         print(f"Number of timesteps: {len(times)}")
         print(f"First time: {times[0]}")
