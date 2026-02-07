@@ -116,10 +116,27 @@ def main():
     nt = len(ts)
     print(f"Using {nt} timesteps")
 
-    # Create resampler for the specified subregion
-    resampler = ResampleToImage(Input=reader)
-    resampler.SamplingDimensions = [nx, nz, 1]
-    resampler.SamplingBounds = [x_sample[0], x_sample[1], z_sample[0], z_sample[1], ymin, ymax]
+    # Create a Plane at y=0 as the sampling mesh (avoids ResampleToImage edge issues)
+    # Plane spans x_sample range (Point1) and z_sample range (Point2)
+    plane = Plane()
+    plane.Origin = [x_sample[0], 0.0, z_sample[0]]
+    plane.Point1 = [x_sample[1], 0.0, z_sample[0]]
+    plane.Point2 = [x_sample[0], 0.0, z_sample[1]]
+    plane.XResolution = nx - 1
+    plane.YResolution = nz - 1
+    plane.UpdatePipeline()
+
+    # Merge all element blocks so the probe can find cells in every block
+    merged = MergeBlocks(Input=reader)
+
+    # Flatten y-coordinates to exactly 0 — the 2D mesh has tiny floating-point
+    # y-offsets (~1e-19) on some blocks that cause the cell locator to miss cells
+    flattened = Transform(Input=merged)
+    flattened.Transform = "Transform"
+    flattened.Transform.Scale = [1.0, 0.0, 1.0]
+
+    # Resample merged data onto the plane
+    resampler = ResampleWithDataset(SourceDataArrays=flattened, DestinationMesh=plane)
 
     # Prepare storage: shape (nz, nx, nt)
     data = np.zeros((nz, nx, nt), dtype=np.float64)
@@ -130,6 +147,8 @@ def main():
 
         # Update pipeline to this time
         reader.UpdatePipeline(time=t)
+        merged.UpdatePipeline(time=t)
+        flattened.UpdatePipeline(time=t)
         resampler.UpdatePipeline(time=t)
 
         # Fetch the data
@@ -153,11 +172,8 @@ def main():
         for p in range(n_points):
             field_data[p] = arr.GetValue(p) if n_components == 1 else arr.GetComponent(p, 0)
 
-        # Reshape to grid dimensions
-        # VTK ImageData: x varies fastest, then y (our z), then z (our ny=1)
-        # Resampler dimensions are [nx, nz, 1]
-        field_grid = field_data.reshape((1, nz, nx), order='C')
-        field_2d = field_grid[0, :, :]  # shape (nz, nx)
+        # Plane points are ordered: x varies fastest (XResolution), then z (YResolution)
+        field_2d = field_data.reshape((nz, nx), order='C')
 
         data[:, :, i] = field_2d
 
