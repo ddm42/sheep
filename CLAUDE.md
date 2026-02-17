@@ -21,6 +21,16 @@ SHEEP is a MOOSE-based application for multiphysics simulations. It's built on t
 - Uses MOOSE framework's factory pattern for object registration
 - Inherits from `MooseApp` and registers with `ModulesApp`
 
+## Permissions and Settings
+
+**The user prefers not to be prompted for tool approvals.** When you need to run Bash commands, read files, or perform other operations that would normally require approval, proactively update the project settings file at `.claude/settings.local.json` to allow them rather than asking the user to click approve repeatedly.
+
+The settings file is at `/Users/ddm42/projects/.claude/settings.local.json`. Use broad allow rules:
+- `"Bash"` — allows all Bash commands (no per-command rules needed)
+- `"Read"` — allows all file reads
+
+**Do NOT** use the legacy colon syntax like `Bash(source:*)` — it doesn't work. Use either bare tool names (`"Bash"`) or space-separated patterns (`"Bash(source *)"`).
+
 ## Common Development Commands
 
 **IMPORTANT: Before running any commands, activate the moose conda environment:**
@@ -121,9 +131,30 @@ Tests use MOOSE's TestHarness system:
 ## Input Files and Problems
 
 Simulation input files (`.i` format) in `problems/`:
-- `Lesion.i` - Currently modified lesion simulation
-- `EllipInclu.i` - Elliptical inclusion problem  
+- `Lesion/Lesion-DirBC.i` - Lesion simulation with Dirichlet BCs (uses Cubit file mesh, x-z plane)
+- `HomRect/HomRect.i` - Homogeneous rectangle for convergence studies (uses GeneratedMeshGenerator, x-y plane)
+- `EllipInclu.i` - Elliptical inclusion problem
 - `ramp_octant-8.i` - Ramp octant geometry
+
+### Body Force Region Width (`epsilon_f`) on Structured Meshes
+
+The Lesion input files use a very narrow body force region (`epsilon_f = 0.0001 m = 0.1 mm` half-width).
+This works with Cubit meshes that have nodes placed within the force band, but is **too narrow for
+GeneratedMeshGenerator structured meshes** — Gauss quadrature points miss the 0.2 mm-wide region entirely,
+producing zero body force and zero displacements.
+
+**Fix:** For structured meshes (like `HomRect.i`), use `epsilon_f >= 0.003 m` (3 mm half-width) so the
+force region spans at least one full element even on the coarsest mesh (h = 5 mm). This is already
+applied in `HomRect.i`.
+
+### HomRect Convergence Study
+
+`HomRect.i` is parameterized for mesh refinement and timestep convergence studies:
+- **Override from CLI:** `nx`, `ny`, `my_dt`, `end_time`, `filename`
+- **Coordinate system:** x-y plane (dim=2) — z→y relabeling from the Cubit x-z mesh
+- **Boundary names:** `bottom`, `right`, `top`, `left` (GeneratedMeshGenerator defaults)
+- **Convergence metric:** `avg_disp_y` postprocessor (average of 4 PointValue samples at t = 6 ms)
+- **Batch runner:** `scripts/HomRect/run_convergence.sh`
 
 ## Build Artifacts
 
