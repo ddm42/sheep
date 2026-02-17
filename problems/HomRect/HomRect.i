@@ -24,7 +24,7 @@ ny = 20                               # elements in y direction
 my_dt = 0.25e-3                       # timestep (s), default 0.25 ms
 
 # Simulation end time
-end_time = 6e-3                       # 6 ms (enough to evaluate convergence metric)
+end_time = 15e-3                      # 15 ms (same as Lesion-DirBC.i)
 
 # Output filename (include h in name; override from CLI)
 filename = 'HomRect_h2.50mm'
@@ -47,12 +47,9 @@ newmark_gamma = 0.5
 F0 = 400                              # peak body force magnitude
 t_imp = 1.0e-3                        # impulse duration (1 ms)
 
-# Body force region (adapted from Lesion-DirBC.i, with z -> y)
-# NOTE: epsilon_f widened from 0.0001 to 0.003 for structured mesh compatibility.
-# The original 0.1 mm half-width is too narrow for Gauss quadrature points to
-# land inside on a uniform grid. 3 mm ensures the force region spans at least
-# 1 element even on the coarsest mesh (h = 5 mm).
-epsilon_f = 0.003                     # half-width of force region (m)
+# Body force spatial profile: Gaussian in x, boxcar in y
+# Gaussian is smooth and mesh-independent (no quadrature aliasing issues)
+sigma_f = 0.003                       # Gaussian std dev in x (m)
 x_center = -0.01                      # x-coordinate center of force region (m)
 y_min_f = 0.015                       # minimum y-coordinate of force region (m)
 y_max_f = 0.035                       # maximum y-coordinate of force region (m)
@@ -86,9 +83,10 @@ y_max = 0.05
 [Functions]
   [./body_masked_time]
     type = ParsedFunction
-    expression = 'if(t <= t_imp, if(x >= (x_center - epsilon_f), if(x <= (x_center + epsilon_f), if(y >= y_min_f, if(y <= y_max_f, F0 * sin(pi * t / t_imp), 0), 0), 0), 0), 0)'
-    symbol_names = 't_imp F0 epsilon_f x_center y_min_f y_max_f'
-    symbol_values = '${t_imp} ${F0} ${epsilon_f} ${x_center} ${y_min_f} ${y_max_f}'
+    # Gaussian in x, boxcar in y, half-sine in t
+    expression = 'if(t <= t_imp, exp(-((x - x_center)^2) / (2 * sigma_f^2)) * if(y >= y_min_f, if(y <= y_max_f, F0 * sin(pi * t / t_imp), 0), 0), 0)'
+    symbol_names = 't_imp F0 sigma_f x_center y_min_f y_max_f'
+    symbol_values = '${t_imp} ${F0} ${sigma_f} ${x_center} ${y_min_f} ${y_max_f}'
   []
 []
 

@@ -136,16 +136,17 @@ Simulation input files (`.i` format) in `problems/`:
 - `EllipInclu.i` - Elliptical inclusion problem
 - `ramp_octant-8.i` - Ramp octant geometry
 
-### Body Force Region Width (`epsilon_f`) on Structured Meshes
+### Body Force on Structured vs Cubit Meshes
 
-The Lesion input files use a very narrow body force region (`epsilon_f = 0.0001 m = 0.1 mm` half-width).
-This works with Cubit meshes that have nodes placed within the force band, but is **too narrow for
-GeneratedMeshGenerator structured meshes** — Gauss quadrature points miss the 0.2 mm-wide region entirely,
-producing zero body force and zero displacements.
+The Lesion input files use a narrow step-function body force (`epsilon_f = 0.0001 m` half-width).
+This works on the Cubit mesh because it has small, irregular elements near the force region whose
+Gauss quadrature points land inside the 0.2 mm band. **On uniform GeneratedMeshGenerator meshes,
+no quadrature points hit such a narrow band**, producing zero body force and zero displacements.
+(Verified in `HomRect-StepTest.i`.)
 
-**Fix:** For structured meshes (like `HomRect.i`), use `epsilon_f >= 0.003 m` (3 mm half-width) so the
-force region spans at least one full element even on the coarsest mesh (h = 5 mm). This is already
-applied in `HomRect.i`.
+**Fix:** `HomRect.i` uses a **Gaussian spatial profile** (`exp(-(x-x0)^2 / 2*sigma^2)`) instead of
+a step function. This is smooth and mesh-independent — every mesh resolution captures a nonzero
+contribution regardless of quadrature point placement.
 
 ### HomRect Convergence Study
 

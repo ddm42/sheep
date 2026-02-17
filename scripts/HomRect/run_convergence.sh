@@ -22,10 +22,8 @@ NUM_PROCS=6
 # Create output directory if needed
 mkdir -p "$OUTPUT_DIR"
 
-# Refinement levels: h (m) | nx | ny | filename label
-# Domain: 0.08 m (x) x 0.05 m (y)
-# Each level halves h (doubles resolution)
-H_VALS=(    0.005    0.0025   0.00125  0.000625 )
+# Refinement levels: nx | ny | h label (mm) for filename
+# Domain: 0.08 m (x) x 0.05 m (y); each level halves h
 NX_VALS=(   16       32       64       128      )
 NY_VALS=(   10       20       40       80       )
 LABELS=(    "5.00"   "2.50"   "1.25"   "0.625"  )
@@ -44,23 +42,22 @@ echo ""
 if [ -n "$1" ]; then
     START=$1; END=$1
 else
-    START=0; END=$(( ${#H_VALS[@]} - 1 ))
+    START=0; END=$(( ${#NX_VALS[@]} - 1 ))
 fi
 
 for i in $(seq $START $END); do
-    h=${H_VALS[$i]}
     nx=${NX_VALS[$i]}
     ny=${NY_VALS[$i]}
     label=${LABELS[$i]}
     filename="HomRect_h${label}mm"
 
     echo "-----------------------------------------"
-    echo "Run $((i+1))/${#H_VALS[@]}: h = ${label} mm, nx = ${nx}, ny = ${ny}"
+    echo "Run $((i+1))/${#NX_VALS[@]}: h = ${label} mm, nx = ${nx}, ny = ${ny}"
     echo "Filename: ${filename}"
     echo "-----------------------------------------"
 
     mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
-        h="$h" nx="$nx" ny="$ny" my_dt="$DT" filename="$filename"
+        nx="$nx" ny="$ny" my_dt="$DT" filename="$filename" -w
 
     if [ $? -eq 0 ]; then
         echo "SUCCESS: ${filename}"
