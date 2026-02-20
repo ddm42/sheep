@@ -29,7 +29,7 @@ import scipy.io
 # Format: [start, end, num_samples]
 x_sample = [-0.02, 0.02, 401]    # x range and number of points
 z_sample = [0.015, 0.035, 201]     # z range and number of points
-t_sample = [0.0, 0.006, 25]      # time range and number of points
+t_sample = [0.0, 0.015, 61]      # time range and number of points
 
 # Field to extract
 field_name = "disp_z"
