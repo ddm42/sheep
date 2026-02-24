@@ -1,15 +1,12 @@
-# exodus_to_mat.py
+# exodus_to_mat.py (HomRect version)
 # Convert MOOSE exodus output to uniformly sampled MAT file
+# Adapted for HomRect x-y plane meshes (z=0)
 #
 # Usage:
 #   /Applications/ParaView-6.0.1.app/Contents/bin/pvpython exodus_to_mat.py <exodus_file>
 #
 # Example:
 #   /Applications/ParaView-6.0.1.app/Contents/bin/pvpython exodus_to_mat.py "/path/to/file.e"
-#
-# NOTE: macOS Finder displays colons (:) as slashes (/) in filenames.
-#       If copying from Finder, replace slashes in the filename with colons.
-#       e.g., "T13/53/18" in Finder should be "T13:53:18" in the path.
 
 import sys
 import os
@@ -28,11 +25,13 @@ import scipy.io
 # ==============================================================================
 # Format: [start, end, num_samples]
 x_sample = [-0.02, 0.02, 401]    # x range and number of points
-z_sample = [0.015, 0.035, 201]     # z range and number of points
-t_sample = [0.0, 0.035, 141]      # time range and number of points
+y_sample = [0.015, 0.035, 201]    # y range and number of points
+t_sample = [0.0, 0.006, 49]       # time range and number of points
 
-# Field to extract
-field_name = "disp_z"
+# Field to extract — ParaView may store as vector "disp_" or scalar "disp_y"
+field_name = "disp_y"
+vector_name = "disp_"       # fallback: vector name if scalar not available
+component_index = 1         # 0=x, 1=y component of the vector
 # ==============================================================================
 
 
@@ -53,18 +52,18 @@ def main():
 
     # Generate coordinate vectors using linspace
     xs = np.linspace(x_sample[0], x_sample[1], x_sample[2])
-    zs = np.linspace(z_sample[0], z_sample[1], z_sample[2])
+    ys = np.linspace(y_sample[0], y_sample[1], y_sample[2])
     ts_requested = np.linspace(t_sample[0], t_sample[1], t_sample[2])
 
-    nx, nz, nt_requested = len(xs), len(zs), len(ts_requested)
+    nx, ny, nt_requested = len(xs), len(ys), len(ts_requested)
 
     # Compute and print increments
     dx = (x_sample[1] - x_sample[0]) / (x_sample[2] - 1) if x_sample[2] > 1 else 0
-    dz = (z_sample[1] - z_sample[0]) / (z_sample[2] - 1) if z_sample[2] > 1 else 0
+    dy = (y_sample[1] - y_sample[0]) / (y_sample[2] - 1) if y_sample[2] > 1 else 0
     dt = (t_sample[1] - t_sample[0]) / (t_sample[2] - 1) if t_sample[2] > 1 else 0
 
-    print(f"Requested sampling: nx={nx}, nz={nz}, nt={nt_requested}")
-    print(f"Increments: dx={dx:.6f}, dz={dz:.6f}, dt={dt:.6f}")
+    print(f"Requested sampling: nx={nx}, ny={ny}, nt={nt_requested}")
+    print(f"Increments: dx={dx:.6f}, dy={dy:.6f}, dt={dt:.6f}")
 
     # Load exodus file
     reader = ExodusIIReader(FileName=[exodus_file])
@@ -74,22 +73,25 @@ def main():
     point_vars = reader.PointVariables
     print(f"Available point variables: {point_vars}")
 
-    # Enable the field we want
+    # Enable the field we want — handle both scalar and vector cases
+    use_vector = False
     if field_name in point_vars:
         reader.PointVariables = [field_name]
+    elif vector_name in point_vars:
+        print(f"  '{field_name}' not found as scalar; using vector '{vector_name}' component {component_index}")
+        reader.PointVariables = [vector_name]
+        use_vector = True
     else:
-        reader.NodeSetArrayStatus = []
-        reader.ElementVariables = []
         reader.PointVariables = [field_name]
 
     reader.UpdatePipeline()
 
-    # Get bounds of the mesh (for y dimension only - x and z come from sampling params)
+    # Get bounds of the mesh
     di = servermanager.Fetch(reader)
     bounds = [0.0] * 6
     di.GetBounds(bounds)
-    mesh_xmin, mesh_xmax, ymin, ymax, mesh_zmin, mesh_zmax = bounds
-    print(f"Mesh bounds: x=[{mesh_xmin}, {mesh_xmax}], y=[{ymin}, {ymax}], z=[{mesh_zmin}, {mesh_zmax}]")
+    mesh_xmin, mesh_xmax, mesh_ymin, mesh_ymax, zmin, zmax = bounds
+    print(f"Mesh bounds: x=[{mesh_xmin}, {mesh_xmax}], y=[{mesh_ymin}, {mesh_ymax}], z=[{zmin}, {zmax}]")
 
     # Get available timesteps from file
     all_timesteps = reader.TimestepValues
@@ -116,30 +118,30 @@ def main():
     nt = len(ts)
     print(f"Using {nt} timesteps")
 
-    # Create a Plane at y=0 as the sampling mesh (avoids ResampleToImage edge issues)
-    # Plane spans x_sample range (Point1) and z_sample range (Point2)
+    # Create a Plane at z=0 as the sampling mesh (HomRect is in x-y plane)
+    # Plane spans x_sample range (Point1) and y_sample range (Point2)
     plane = Plane()
-    plane.Origin = [x_sample[0], 0.0, z_sample[0]]
-    plane.Point1 = [x_sample[1], 0.0, z_sample[0]]
-    plane.Point2 = [x_sample[0], 0.0, z_sample[1]]
+    plane.Origin = [x_sample[0], y_sample[0], 0.0]
+    plane.Point1 = [x_sample[1], y_sample[0], 0.0]
+    plane.Point2 = [x_sample[0], y_sample[1], 0.0]
     plane.XResolution = nx - 1
-    plane.YResolution = nz - 1
+    plane.YResolution = ny - 1
     plane.UpdatePipeline()
 
     # Merge all element blocks so the probe can find cells in every block
     merged = MergeBlocks(Input=reader)
 
-    # Flatten y-coordinates to exactly 0 — the 2D mesh has tiny floating-point
-    # y-offsets (~1e-19) on some blocks that cause the cell locator to miss cells
+    # Flatten z-coordinates to exactly 0 — the 2D mesh may have tiny floating-point
+    # z-offsets that cause the cell locator to miss cells
     flattened = Transform(Input=merged)
     flattened.Transform = "Transform"
-    flattened.Transform.Scale = [1.0, 0.0, 1.0]
+    flattened.Transform.Scale = [1.0, 1.0, 0.0]
 
     # Resample merged data onto the plane
     resampler = ResampleWithDataset(SourceDataArrays=flattened, DestinationMesh=plane)
 
-    # Prepare storage: shape (nz, nx, nt)
-    data = np.zeros((nz, nx, nt), dtype=np.float64)
+    # Prepare storage: shape (ny, nx, nt)
+    data = np.zeros((ny, nx, nt), dtype=np.float64)
 
     # Process each timestep
     for i, t in enumerate(ts):
@@ -156,10 +158,11 @@ def main():
 
         # Get the field array
         point_data = resampled_data.GetPointData()
-        arr = point_data.GetArray(field_name)
+        arr_name = vector_name if use_vector else field_name
+        arr = point_data.GetArray(arr_name)
 
         if arr is None:
-            print(f"  WARNING: Field '{field_name}' not found at timestep {t}")
+            print(f"  WARNING: Field '{arr_name}' not found at timestep {t}")
             for j in range(point_data.GetNumberOfArrays()):
                 print(f"    Available: {point_data.GetArrayName(j)}")
             continue
@@ -169,11 +172,15 @@ def main():
         n_components = arr.GetNumberOfComponents()
 
         field_data = np.zeros(n_points)
-        for p in range(n_points):
-            field_data[p] = arr.GetValue(p) if n_components == 1 else arr.GetComponent(p, 0)
+        if use_vector and n_components > 1:
+            for p in range(n_points):
+                field_data[p] = arr.GetComponent(p, component_index)
+        else:
+            for p in range(n_points):
+                field_data[p] = arr.GetValue(p) if n_components == 1 else arr.GetComponent(p, 0)
 
-        # Plane points are ordered: x varies fastest (XResolution), then z (YResolution)
-        field_2d = field_data.reshape((nz, nx), order='C')
+        # Plane points are ordered: x varies fastest (XResolution), then y (YResolution)
+        field_2d = field_data.reshape((ny, nx), order='C')
 
         data[:, :, i] = field_2d
 
@@ -187,24 +194,24 @@ def main():
     scipy.io.savemat(output_file, {
         field_name: data,
         'xs': xs,
-        'zs': zs,
+        'ys': ys,
         'ts': ts_array,
         'dx': dx,
-        'dz': dz,
+        'dy': dy,
         'dt': dt,
     })
 
     print(f"\n=== Summary ===")
     print(f"Output file: {output_file}")
-    print(f"Array '{field_name}' shape: {data.shape} (nz, nx, nt)")
+    print(f"Array '{field_name}' shape: {data.shape} (ny, nx, nt)")
     print(f"xs: {len(xs)} points, range [{xs[0]:.6f}, {xs[-1]:.6f}], dx={dx:.6f}")
-    print(f"zs: {len(zs)} points, range [{zs[0]:.6f}, {zs[-1]:.6f}], dz={dz:.6f}")
+    print(f"ys: {len(ys)} points, range [{ys[0]:.6f}, {ys[-1]:.6f}], dy={dy:.6f}")
     print(f"ts: {len(ts_array)} points, range [{ts_array[0]:.6f}, {ts_array[-1]:.6f}], dt={dt:.6f}")
     print(f"\nMATLAB usage:")
     print(f"  data = load('{os.path.basename(output_file)}');")
-    print(f"  {field_name} = data.{field_name};  % ({nz}, {nx}, {nt})")
+    print(f"  {field_name} = data.{field_name};  % ({ny}, {nx}, {nt})")
     print(f"  xs = data.xs;  % ({nx},)")
-    print(f"  zs = data.zs;  % ({nz},)")
+    print(f"  ys = data.ys;  % ({ny},)")
     print(f"  ts = data.ts;  % ({nt},)")
 
 
