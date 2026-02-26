@@ -26,7 +26,7 @@ import scipy.io
 # Format: [start, end, num_samples]
 x_sample = [-0.02, 0.02, 401]    # x range and number of points
 y_sample = [0.015, 0.035, 201]    # y range and number of points
-t_sample = [0.0, 0.006, 49]       # time range and number of points
+t_sample = [0.0, 0.020, 161]      # time range and number of points
 
 # Field to extract — ParaView may store as vector "disp_" or scalar "disp_y"
 field_name = "disp_y"

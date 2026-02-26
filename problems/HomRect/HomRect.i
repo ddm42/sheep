@@ -24,7 +24,7 @@ ny = 20                               # elements in y direction
 my_dt = 0.25e-3                       # timestep (s), default 0.25 ms
 
 # Simulation end time
-end_time = 6e-3                      # 15 ms (same as Lesion-DirBC.i)
+end_time = 20e-3                      # 15 ms (same as Lesion-DirBC.i)
 
 # Output filename (include h in name; override from CLI)
 filename = 'HomRect_h2.50mm'
