@@ -50,7 +50,7 @@ z_min = 0.015                          # minimum z-coordinate of force region (m
 z_max = 0.035                          # maximum z-coordinate of force region (m)
 
 # Time stepping (overridable from CLI)
-my_dt = 0.125e-3                       # timestep (s)
+my_dt = 0.0625e-3                      # timestep (s) — sub-percent error at f_max=1500 Hz
 end_time = 20e-3                       # simulation end time (s)
 
 # Default mesh refinement for production (refine=2 on h2.50mm base -> effective h~0.625mm)
@@ -303,6 +303,7 @@ refine = 2
 []
 
 [Outputs]
+  append_date = true
   [./exodus]
     type = Exodus
     file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus/${filename}${suffix}"
