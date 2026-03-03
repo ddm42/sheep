@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Plot spatial and temporal convergence for Lesion-DirBC simulations.
+Plot spatial and temporal convergence for Lesion simulations.
 Reads CSV outputs from convergence studies and produces 6 figures:
   1. Strain energy vs time (spatial refinement overlay)
   2. Strain energy vs time (dt refinement overlay)
@@ -8,8 +8,13 @@ Reads CSV outputs from convergence studies and produces 6 figures:
   4. Log-log convergence plot: temporal strain energy error vs dt
   5. Log-log convergence plot: spatial displacement error vs h (4 sample points)
   6. Log-log convergence plot: temporal displacement error vs dt (4 sample points)
+
+Usage:
+  python3 plot_convergence.py                           # default: Lesion
+  python3 plot_convergence.py --data-dir /path/to/dir   # custom data directory
 """
 
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -18,10 +23,12 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # ---------- paths ----------
-DATA_DIR = Path(
+# Accept data directory as positional arg or default to Lesion/exodus
+DEFAULT_DIR = Path(
     "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/"
     "Artery_Research/data/artery_OED/Lesion/exodus"
 )
+DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DIR
 SAVE_DIR = DATA_DIR  # save figures alongside the data
 
 # ---------- spatial convergence files (glob handles MOOSE append_date timestamps) ----------
@@ -57,6 +64,10 @@ DISP_LABELS = [
 def find_latest_csv(directory, pattern, exclude=None):
     """Find the most recent CSV matching a glob pattern (handles MOOSE append_date).
 
+    Sorts by filename (not mtime) since MOOSE timestamps embedded in filenames
+    are lexicographically sortable. This avoids expensive stat() calls on
+    network-mounted filesystems like Google Drive.
+
     Parameters
     ----------
     exclude : str, optional
@@ -65,7 +76,7 @@ def find_latest_csv(directory, pattern, exclude=None):
     matches = list(directory.glob(pattern))
     if exclude:
         matches = [m for m in matches if exclude not in m.name]
-    matches.sort(key=lambda p: p.stat().st_mtime)
+    matches.sort(key=lambda p: p.name)
     if not matches:
         raise FileNotFoundError(f"No file matching '{pattern}' in {directory}")
     return matches[-1]

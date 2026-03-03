@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# run_convergence.sh -- Spatial convergence study for Lesion-DirBC
+# run_convergence.sh -- Spatial convergence study for Lesion problems
 #
 # Uses uniform_refine on Lesion_h2.50mm.e base mesh (halves h each level).
 # Convergence metrics: strain_energy, disp_z at 4 sample points (from CSV).
@@ -9,18 +9,30 @@
 # First reflection enters imaging domain at ~10 ms; T_EVAL = 8 ms.
 #
 # Usage:
-#   ./run_convergence.sh            # run all refinement levels
-#   ./run_convergence.sh 2          # run only refinement level 2
+#   ./run_convergence.sh                          # Lesion-DirBC, all levels
+#   ./run_convergence.sh /path/to/Lesion_25_9.i   # different problem, all levels
+#   ./run_convergence.sh /path/to/Lesion_25_9.i 2 # different problem, level 2 only
 ###############################################################################
 
 # Initialize conda
 source ~/miniforge/etc/profile.d/conda.sh && conda activate moose
 
 # Paths
-SHEEP_EXE="/Users/ddm42/projects/sheep/sheep-opt"
-INPUT_FILE="/Users/ddm42/projects/sheep/problems/Lesion/Lesion-DirBC.i"
-OUTPUT_DIR="/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion/exodus"
+SHEEP_DIR="/Users/ddm42/projects/sheep"
+SHEEP_EXE="${SHEEP_DIR}/sheep-opt"
+INPUT_FILE="${1:-${SHEEP_DIR}/problems/Lesion/Lesion-DirBC.i}"
 NUM_PROCS=6
+
+# Derive output dir from the .i file's file_base line
+OUTPUT_DIR=$(grep 'file_base' "$INPUT_FILE" | head -1 | sed 's/.*"\(.*\)\/${.*/\1/')
+
+# Validate
+if [ ! -f "$INPUT_FILE" ]; then
+    echo "ERROR: Input file not found: $INPUT_FILE"
+    exit 1
+fi
+
+PROBLEM_NAME=$(basename "$INPUT_FILE" .i)
 
 # Create output directory if needed
 mkdir -p "$OUTPUT_DIR"
@@ -38,17 +50,18 @@ DT="0.03125e-3"
 END_TIME="10e-3"
 
 echo "================================================="
-echo "Lesion-DirBC Spatial Convergence Study"
+echo "${PROBLEM_NAME} Spatial Convergence Study"
 echo "================================================="
+echo "  Input file: ${INPUT_FILE}"
 echo "  Base mesh: ${BASE_MESH}"
 echo "  Timestep (fixed): dt = ${DT} s"
 echo "  End time: ${END_TIME} s"
 echo "  Output dir: ${OUTPUT_DIR}"
 echo ""
 
-# Allow running a single level: ./run_convergence.sh <level>
-if [ -n "$1" ]; then
-    START=$1; END=$1
+# Allow running a single level: ./run_convergence.sh <input_file> <level>
+if [ -n "$2" ]; then
+    START=$2; END=$2
 else
     START=0; END=$(( ${#REFINE_VALS[@]} - 1 ))
 fi
