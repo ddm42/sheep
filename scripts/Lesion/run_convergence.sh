@@ -37,8 +37,8 @@ PROBLEM_NAME=$(basename "$INPUT_FILE" .i)
 # Create output directory if needed
 mkdir -p "$OUTPUT_DIR"
 
-# Base mesh file
-BASE_MESH="Lesion_h2.50mm"
+# Derive base mesh name from the .i file's 'filename' default
+BASE_MESH=$(grep '^filename' "$INPUT_FILE" | head -1 | sed 's/.*= *"\(.*\)".*/\1/')
 
 # Refinement levels: uniform_refine value | effective h label
 REFINE_VALS=(   0          1          2          3          )

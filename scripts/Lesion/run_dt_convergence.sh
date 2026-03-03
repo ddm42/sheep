@@ -38,8 +38,8 @@ PROBLEM_NAME=$(basename "$INPUT_FILE" .i)
 # Create output directory if needed
 mkdir -p "$OUTPUT_DIR"
 
-# Fixed mesh: base mesh + refine=2 (h ~ 0.625mm)
-BASE_MESH="Lesion_h2.50mm"
+# Derive base mesh name from the .i file's 'filename' default
+BASE_MESH=$(grep '^filename' "$INPUT_FILE" | head -1 | sed 's/.*= *"\(.*\)".*/\1/')
 REFINE=2
 
 # End time

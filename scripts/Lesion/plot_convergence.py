@@ -31,35 +31,9 @@ DEFAULT_DIR = Path(
 DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DIR
 SAVE_DIR = DATA_DIR  # save figures alongside the data
 
-# ---------- spatial convergence files (glob handles MOOSE append_date timestamps) ----------
-spatial_levels = [
-    {"h_mm": 2.50,   "refine": 0, "pattern": "Lesion_h2.50mm_h2.50mm*.csv"},
-    {"h_mm": 1.25,   "refine": 1, "pattern": "Lesion_h2.50mm_h1.25mm*.csv"},
-    {"h_mm": 0.625,  "refine": 2, "pattern": "Lesion_h2.50mm_h0.625mm*.csv"},
-    {"h_mm": 0.3125, "refine": 3, "pattern": "Lesion_h2.50mm_h0.3125mm*.csv"},
-]
-
-# ---------- temporal convergence files ----------
-dt_levels = [
-    {"dt_ms": 0.125,    "pattern": "Lesion_h2.50mm_h0.625mm_dt0.125ms*.csv"},
-    {"dt_ms": 0.0625,   "pattern": "Lesion_h2.50mm_h0.625mm_dt0.0625ms*.csv"},
-    {"dt_ms": 0.03125,  "pattern": "Lesion_h2.50mm_h0.625mm_dt0.03125ms*.csv"},
-    {"dt_ms": 0.015625, "pattern": "Lesion_h2.50mm_h0.625mm_dt0.015625ms*.csv"},
-]
-
 # Evaluation time for convergence metric
 # First shear wave reflection enters imaging domain at ~10 ms; evaluate before that
 T_EVAL = 0.008  # 8 ms
-
-# Displacement sample point columns in CSV
-DISP_COLS = ["disp_z_pt1", "disp_z_pt2", "disp_z_pt3", "disp_z_pt4"]
-DISP_LABELS = [
-    "pt1 (-5, 25) mm",
-    "pt2 (5, 25) mm",
-    "pt3 (10, 20) mm",
-    "pt4 (10, 30) mm",
-]
-
 
 def find_latest_csv(directory, pattern, exclude=None):
     """Find the most recent CSV matching a glob pattern (handles MOOSE append_date).
@@ -138,6 +112,60 @@ def richardson_rate(q1, q2, q3, r=2.0):
         return np.nan
     return np.log(num / den) / np.log(r)
 
+
+# ---------- auto-detect base filename prefix ----------
+# Look for the coarsest spatial level (*_h2.50mm*.csv) to derive the prefix.
+# This works for any problem: Lesion_h2.50mm, Lesion_TopRight, etc.
+_coarse_files = [f for f in DATA_DIR.glob("*_h2.50mm*.csv") if "_dt" not in f.name]
+if not _coarse_files:
+    raise FileNotFoundError(f"No *_h2.50mm*.csv files found in {DATA_DIR}")
+_coarse_files.sort(key=lambda p: p.name)
+BASE_PREFIX = _coarse_files[-1].name.split("_h2.50mm")[0]
+print(f"Auto-detected base prefix: {BASE_PREFIX}")
+
+# ---------- spatial convergence files (glob handles MOOSE append_date timestamps) ----------
+# Only include levels whose CSV files actually exist (level 3 may be skipped for TRI6)
+_all_spatial = [
+    {"h_mm": 2.50,   "refine": 0, "pattern": f"{BASE_PREFIX}_h2.50mm*.csv"},
+    {"h_mm": 1.25,   "refine": 1, "pattern": f"{BASE_PREFIX}_h1.25mm*.csv"},
+    {"h_mm": 0.625,  "refine": 2, "pattern": f"{BASE_PREFIX}_h0.625mm*.csv"},
+    {"h_mm": 0.3125, "refine": 3, "pattern": f"{BASE_PREFIX}_h0.3125mm*.csv"},
+]
+spatial_levels = [
+    lvl for lvl in _all_spatial
+    if list(DATA_DIR.glob(lvl["pattern"])) and
+       not all("_dt" in f.name for f in DATA_DIR.glob(lvl["pattern"]))
+]
+print(f"Found {len(spatial_levels)} spatial levels: h = {[l['h_mm'] for l in spatial_levels]} mm")
+
+# ---------- temporal convergence files ----------
+_all_dt = [
+    {"dt_ms": 0.125,    "pattern": f"{BASE_PREFIX}_h0.625mm_dt0.125ms*.csv"},
+    {"dt_ms": 0.0625,   "pattern": f"{BASE_PREFIX}_h0.625mm_dt0.0625ms*.csv"},
+    {"dt_ms": 0.03125,  "pattern": f"{BASE_PREFIX}_h0.625mm_dt0.03125ms*.csv"},
+    {"dt_ms": 0.015625, "pattern": f"{BASE_PREFIX}_h0.625mm_dt0.015625ms*.csv"},
+]
+dt_levels = [lvl for lvl in _all_dt if list(DATA_DIR.glob(lvl["pattern"]))]
+print(f"Found {len(dt_levels)} temporal levels: dt = {[l['dt_ms'] for l in dt_levels]} ms")
+
+# ---------- auto-detect displacement column names ----------
+# Cubit-based problems (x-z plane) use disp_z_pt*; MOOSE-generated (x-y plane) use disp_y_pt*
+_sample_csv = find_latest_csv(DATA_DIR, spatial_levels[0]["pattern"], exclude="_dt")
+_sample_cols = pd.read_csv(_sample_csv, nrows=0).columns.tolist()
+if "disp_y_pt1" in _sample_cols:
+    DISP_COLS = ["disp_y_pt1", "disp_y_pt2", "disp_y_pt3", "disp_y_pt4"]
+    DISP_VAR = "u_y"
+else:
+    DISP_COLS = ["disp_z_pt1", "disp_z_pt2", "disp_z_pt3", "disp_z_pt4"]
+    DISP_VAR = "u_z"
+
+DISP_LABELS = [
+    "pt1 (-5, 25) mm",
+    "pt2 (5, 25) mm",
+    "pt3 (10, 20) mm",
+    "pt4 (10, 30) mm",
+]
+print(f"Displacement columns: {DISP_COLS[0].rsplit('_', 1)[0]}_pt*")
 
 # =====================================================================
 # Load data
@@ -324,7 +352,7 @@ ax5.axhline(1.0, color="red", ls=":", lw=1, alpha=0.6, label="1% error")
 
 ax5.set_xlabel("Element size h (mm)")
 ax5.set_ylabel("Relative L2-in-time error (%)")
-ax5.set_title(r"Spatial Convergence — $\|u_z - u_{z,ref}\|_{L^2(t)}$ / $\|u_{ref}\|_{L^2(t)}$")
+ax5.set_title(rf"Spatial Convergence — $\|{DISP_VAR} - {DISP_VAR}_{{ref}}\|_{{L^2(t)}}$ / $\|{DISP_VAR}_{{ref}}\|_{{L^2(t)}}$")
 ax5.legend(fontsize=8)
 ax5.grid(True, which="both", alpha=0.3)
 fig5.tight_layout()
@@ -374,7 +402,7 @@ ax6.axhline(1.0, color="red", ls=":", lw=1, alpha=0.6, label="1% error")
 
 ax6.set_xlabel(r"Timestep $\Delta t$ (ms)")
 ax6.set_ylabel("Relative L2-in-time error (%)")
-ax6.set_title(r"Temporal Convergence — $\|u_z - u_{z,ref}\|_{L^2(t)}$ / $\|u_{ref}\|_{L^2(t)}$")
+ax6.set_title(rf"Temporal Convergence — $\|{DISP_VAR} - {DISP_VAR}_{{ref}}\|_{{L^2(t)}}$ / $\|{DISP_VAR}_{{ref}}\|_{{L^2(t)}}$")
 ax6.legend(fontsize=8)
 ax6.grid(True, which="both", alpha=0.3)
 fig6.tight_layout()
