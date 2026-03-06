@@ -21,14 +21,17 @@
 # Initialize conda
 source ~/miniforge/etc/profile.d/conda.sh && conda activate moose
 
-# Paths
-SHEEP_DIR="/Users/ddm42/projects/sheep"
-SHEEP_EXE="${SHEEP_DIR}/sheep-opt"
-INPUT_FILE="${1:-${SHEEP_DIR}/problems/Lesion/Lesion-DirBC.i}"
-NUM_PROCS=6
+# Source config
+REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+CONFIG="${SHEEP_CONFIG:-$REPO_DIR/config.sh}"
+if [ ! -f "$CONFIG" ]; then
+    echo "Error: config.sh not found. Create it from the template:"
+    echo "  cp config_temp.sh config.sh"
+    exit 1
+fi
+source "$CONFIG"
 
-# Derive output dir from the .i file's file_base line
-OUTPUT_DIR=$(grep 'file_base' "$INPUT_FILE" | head -1 | sed 's/.*"\(.*\)\/${.*/\1/')
+INPUT_FILE="${1:-${REPO_DIR}/problems/Lesion/Lesion-DirBC.i}"
 
 # Validate
 if [ ! -f "$INPUT_FILE" ]; then
@@ -38,8 +41,16 @@ fi
 
 PROBLEM_NAME=$(basename "$INPUT_FILE" .i)
 
-# Create output directory if needed
-mkdir -p "$OUTPUT_DIR"
+# Derive output_dir from the .i file's output_dir variable (strip ${data_dir}/ prefix)
+SUBDIR=$(grep '^output_dir' "$INPUT_FILE" | head -1 | sed "s/.*{data_dir}\///" | sed "s/'.*//")
+OUTPUT_DIR="$DATA_DIR/$SUBDIR"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_DIR="$SCRIPT_DIR/logs"
+
+mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
+
+timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
 # Derive base mesh name from the .i file's 'filename' default
 BASE_MESH=$(grep '^filename' "$INPUT_FILE" | head -1 | sed 's/.*= *"\(.*\)".*/\1/')
@@ -51,34 +62,32 @@ else
     MESH_TYPE="structured"
 fi
 
-# Fixed timestep for spatial convergence (small enough that temporal error is
-# negligible at f_max = 1500 Hz: dt = 0.03125 ms -> 21 samples/period)
+# Fixed timestep for spatial convergence
 DT="0.03125e-3"
 END_TIME="10e-3"
 
-echo "================================================="
-echo "${PROBLEM_NAME} Spatial Convergence Study"
-echo "================================================="
+echo "[$(timestamp)] ${PROBLEM_NAME} Spatial Convergence Study"
 echo "  Input file: ${INPUT_FILE}"
 echo "  Base mesh: ${BASE_MESH}"
 echo "  Mesh type: ${MESH_TYPE}"
 echo "  Timestep (fixed): dt = ${DT} s"
 echo "  End time: ${END_TIME} s"
 echo "  Output dir: ${OUTPUT_DIR}"
-echo ""
+echo "  Log dir: ${LOG_DIR}"
+
+SECONDS=0
 
 if [ "$MESH_TYPE" = "conformal" ]; then
-    # Conformal mesh: vary desired_area and n_ellipse
-    # h halving => area quartering, n_ellipse doubling
     AREA_VALS=(    "2.7e-6"    "6.8e-7"    "1.7e-7"    "4.2e-8"    )
     NELLIPSE_VALS=( 10          20          40          80          )
     H_LABELS=(     "h2.50mm"  "h1.25mm"  "h0.625mm" "h0.3125mm")
+    TOTAL=${#AREA_VALS[@]}
+    echo "  Runs: ${TOTAL} refinement levels"
 
-    # Allow running a single level
     if [ -n "$2" ]; then
         START=$2; END=$2
     else
-        START=0; END=$(( ${#AREA_VALS[@]} - 1 ))
+        START=0; END=$(( TOTAL - 1 ))
     fi
 
     for i in $(seq $START $END); do
@@ -86,61 +95,73 @@ if [ "$MESH_TYPE" = "conformal" ]; then
         nellipse=${NELLIPSE_VALS[$i]}
         label=${H_LABELS[$i]}
         suffix="_${label}"
+        RUN_LOG="$LOG_DIR/${BASE_MESH}${suffix}.log"
 
-        echo "-----------------------------------------"
-        echo "Run $((i+1))/${#AREA_VALS[@]}: desired_area=${area}, n_ellipse=${nellipse}, h ~ ${label}"
-        echo "Output suffix: ${suffix}"
-        echo "-----------------------------------------"
+        echo ""
+        echo "[$(timestamp)] === Run $((i+1))/${TOTAL}: desired_area=${area}, n_ellipse=${nellipse}, h ~ ${label} ==="
+        echo "  MOOSE log: ${RUN_LOG}"
+
+        RUN_SECONDS=$SECONDS
 
         mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
             filename="$BASE_MESH" desired_area="$area" n_ellipse="$nellipse" \
-            my_dt="$DT" end_time="$END_TIME" suffix="$suffix" -w
+            my_dt="$DT" end_time="$END_TIME" suffix="$suffix" \
+            data_dir="$DATA_DIR" > "$RUN_LOG" 2>&1
 
-        if [ $? -eq 0 ]; then
-            echo "SUCCESS: ${BASE_MESH}${suffix}"
+        EXIT_CODE=$?
+        ELAPSED=$(( SECONDS - RUN_SECONDS ))
+        ELAPSED_MIN=$(awk "BEGIN {printf \"%.1f\", $ELAPSED/60}")
+
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "[$(timestamp)] PASS: ${BASE_MESH}${suffix} (${ELAPSED_MIN} min)"
         else
-            echo "FAILED: ${BASE_MESH}${suffix}"
+            echo "[$(timestamp)] FAIL: ${BASE_MESH}${suffix} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
         fi
-        echo ""
     done
 else
-    # Structured mesh: vary uniform_refine
     REFINE_VALS=(   0          1          2          3          )
     H_LABELS=(     "h2.50mm"  "h1.25mm"  "h0.625mm" "h0.3125mm")
+    TOTAL=${#REFINE_VALS[@]}
+    echo "  Runs: ${TOTAL} refinement levels"
 
-    # Allow running a single level
     if [ -n "$2" ]; then
         START=$2; END=$2
     else
-        START=0; END=$(( ${#REFINE_VALS[@]} - 1 ))
+        START=0; END=$(( TOTAL - 1 ))
     fi
 
     for i in $(seq $START $END); do
         ref=${REFINE_VALS[$i]}
         label=${H_LABELS[$i]}
         suffix="_${label}"
+        RUN_LOG="$LOG_DIR/${BASE_MESH}${suffix}.log"
 
-        echo "-----------------------------------------"
-        echo "Run $((i+1))/${#REFINE_VALS[@]}: refine=${ref}, h ~ ${label}"
-        echo "Output suffix: ${suffix}"
-        echo "-----------------------------------------"
+        echo ""
+        echo "[$(timestamp)] === Run $((i+1))/${TOTAL}: refine=${ref}, h ~ ${label} ==="
+        echo "  MOOSE log: ${RUN_LOG}"
+
+        RUN_SECONDS=$SECONDS
 
         mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
             filename="$BASE_MESH" refine="$ref" my_dt="$DT" \
-            end_time="$END_TIME" suffix="$suffix" -w
+            end_time="$END_TIME" suffix="$suffix" \
+            data_dir="$DATA_DIR" > "$RUN_LOG" 2>&1
 
-        if [ $? -eq 0 ]; then
-            echo "SUCCESS: ${BASE_MESH}${suffix}"
+        EXIT_CODE=$?
+        ELAPSED=$(( SECONDS - RUN_SECONDS ))
+        ELAPSED_MIN=$(awk "BEGIN {printf \"%.1f\", $ELAPSED/60}")
+
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "[$(timestamp)] PASS: ${BASE_MESH}${suffix} (${ELAPSED_MIN} min)"
         else
-            echo "FAILED: ${BASE_MESH}${suffix}"
+            echo "[$(timestamp)] FAIL: ${BASE_MESH}${suffix} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
         fi
-        echo ""
     done
 fi
 
-echo "================================================="
-echo "All runs completed!"
-echo "================================================="
+TOTAL_MIN=$(awk "BEGIN {printf \"%.1f\", $SECONDS/60}")
 echo ""
-echo "To extract convergence data:"
-echo "  Look in CSV files at: ${OUTPUT_DIR}/${BASE_MESH}_h*.csv"
+echo "[$(timestamp)] All runs completed. Total walltime: ${TOTAL_MIN} min"
+echo ""
+echo "CSV files at: ${OUTPUT_DIR}/${BASE_MESH}_h*.csv"
+echo "MOOSE logs at: ${LOG_DIR}/${BASE_MESH}_h*.log"

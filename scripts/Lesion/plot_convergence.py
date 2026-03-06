@@ -9,9 +9,10 @@ Reads CSV outputs from convergence studies and produces 6 figures:
   5. Log-log convergence plot: spatial displacement error vs h (4 sample points)
   6. Log-log convergence plot: temporal displacement error vs dt (4 sample points)
 
-Usage:
+Usage (requires numpy, pandas, matplotlib — available in moose conda env):
+  conda activate moose
   python3 plot_convergence.py                           # default: Lesion
-  python3 plot_convergence.py --data-dir /path/to/dir   # custom data directory
+  python3 plot_convergence.py /path/to/Lesion/exodus    # custom data directory
 """
 
 import sys

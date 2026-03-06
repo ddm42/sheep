@@ -150,6 +150,12 @@ moose/include/base/Precompiled.h.gch
 
 framework/contrib/exodiff/exodiff
 
+# Machine-specific config
+config.sh
+
+# Script logs
+scripts/*/logs/
+
 # Mac garbage
 .DS_Store
 *.dSYM

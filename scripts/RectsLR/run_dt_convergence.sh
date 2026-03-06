@@ -14,14 +14,24 @@
 # Initialize conda
 source ~/miniforge/etc/profile.d/conda.sh && conda activate moose
 
-# Paths
-SHEEP_EXE="/Users/ddm42/projects/sheep/sheep-opt"
-INPUT_FILE="/Users/ddm42/projects/sheep/problems/RectsLR/RectsLR.i"
-OUTPUT_DIR="/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/RectsLR/exodus"
-NUM_PROCS=6
+# Source config
+REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+CONFIG="${SHEEP_CONFIG:-$REPO_DIR/config.sh}"
+if [ ! -f "$CONFIG" ]; then
+    echo "Error: config.sh not found. Create it from the template:"
+    echo "  cp config_temp.sh config.sh"
+    exit 1
+fi
+source "$CONFIG"
 
-# Create output directory if needed
-mkdir -p "$OUTPUT_DIR"
+INPUT_FILE="$REPO_DIR/problems/RectsLR/RectsLR.i"
+OUTPUT_DIR="$DATA_DIR/RectsLR/exodus"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_DIR="$SCRIPT_DIR/logs"
+
+mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
+
+timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
 # Fixed mesh: h=1.25mm
 NX=64
@@ -30,42 +40,53 @@ NY=40
 # Timestep levels (halving each time)
 DT_VALS=(   "0.50e-3"   "0.25e-3"   "0.125e-3"   "0.0625e-3"  )
 LABELS=(    "dt0.500ms"  "dt0.250ms"  "dt0.125ms"   "dt0.0625ms" )
+TOTAL=${#DT_VALS[@]}
 
-echo "========================================="
-echo "RectsLR Timestep Convergence Study"
-echo "========================================="
+echo "[$(timestamp)] RectsLR Timestep Convergence Study"
 echo "  Fixed mesh: nx=${NX}, ny=${NY} (h=1.25mm)"
 echo "  Output dir: ${OUTPUT_DIR}"
-echo ""
+echo "  Log dir: ${LOG_DIR}"
+echo "  Runs: ${TOTAL} timestep levels"
 
 # Allow running a single level: ./run_dt_convergence.sh <level>
 if [ -n "$1" ]; then
     START=$1; END=$1
 else
-    START=0; END=$(( ${#DT_VALS[@]} - 1 ))
+    START=0; END=$(( TOTAL - 1 ))
 fi
+
+SECONDS=0
 
 for i in $(seq $START $END); do
     dt=${DT_VALS[$i]}
     label=${LABELS[$i]}
     filename="RectsLR_h1.25mm_${label}"
+    RUN_LOG="$LOG_DIR/${filename}.log"
 
-    echo "-----------------------------------------"
-    echo "Run $((i+1))/${#DT_VALS[@]}: dt = ${dt} s"
-    echo "Filename: ${filename}"
-    echo "-----------------------------------------"
+    echo ""
+    echo "[$(timestamp)] === Run $((i+1))/${TOTAL}: dt = ${dt} s (nx=${NX}, ny=${NY}) ==="
+    echo "  MOOSE log: ${RUN_LOG}"
+
+    RUN_SECONDS=$SECONDS
 
     mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
-        nx="$NX" ny="$NY" my_dt="$dt" filename="$filename" -w
+        nx="$NX" ny="$NY" my_dt="$dt" filename="$filename" \
+        data_dir="$DATA_DIR" > "$RUN_LOG" 2>&1
 
-    if [ $? -eq 0 ]; then
-        echo "SUCCESS: ${filename}"
+    EXIT_CODE=$?
+    ELAPSED=$(( SECONDS - RUN_SECONDS ))
+    ELAPSED_MIN=$(awk "BEGIN {printf \"%.1f\", $ELAPSED/60}")
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "[$(timestamp)] PASS: ${filename} (${ELAPSED_MIN} min)"
     else
-        echo "FAILED: ${filename}"
+        echo "[$(timestamp)] FAIL: ${filename} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
     fi
-    echo ""
 done
 
-echo "========================================="
-echo "All runs completed!"
-echo "========================================="
+TOTAL_MIN=$(awk "BEGIN {printf \"%.1f\", $SECONDS/60}")
+echo ""
+echo "[$(timestamp)] All runs completed. Total walltime: ${TOTAL_MIN} min"
+echo ""
+echo "CSV files at: ${OUTPUT_DIR}/RectsLR_h1.25mm_dt*.csv"
+echo "MOOSE logs at: ${LOG_DIR}/RectsLR_h1.25mm_dt*.log"

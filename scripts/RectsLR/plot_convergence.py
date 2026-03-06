@@ -7,8 +7,14 @@ Produces:
   2. Strain energy vs time (dt refinement overlay)
   3. Log-log convergence plot: spatial (error vs h)
   4. Log-log convergence plot: temporal (error vs dt)
+
+Usage (requires numpy, pandas, matplotlib — available in moose conda env):
+  conda activate moose
+  python3 plot_convergence.py                          # default data dir
+  python3 plot_convergence.py /path/to/RectsLR/exodus  # custom data dir
 """
 
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -17,10 +23,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # ---------- paths ----------
-DATA_DIR = Path(
+DEFAULT_DIR = Path(
     "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/"
     "Artery_Research/data/artery_OED/RectsLR/exodus"
 )
+DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DIR
 SAVE_DIR = DATA_DIR
 
 # ---------- spatial convergence files ----------

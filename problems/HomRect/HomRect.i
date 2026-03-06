@@ -12,6 +12,7 @@
 #   my_dt    - timestep (s)
 #   end_time - simulation end time (s)
 #   filename - output file base name (include h in name for tracking)
+#   data_dir - base data directory (output goes to data_dir/HomRect/exodus/)
 ###############################################################################
 
 # -------------------------
@@ -28,6 +29,10 @@ end_time = 20e-3                      # 15 ms (same as Lesion-DirBC.i)
 
 # Output filename (include h in name; override from CLI)
 filename = 'HomRect_h2.50mm'
+
+# Data directory (override from CLI for different machines)
+data_dir = '/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED'
+output_dir = '${data_dir}/HomRect/exodus'
 
 # -------------------------
 # Material constants (homogeneous -- base material only)
@@ -289,11 +294,11 @@ y_max = 0.05
 [Outputs]
   [./exodus]
     type = Exodus
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/HomRect/exodus/${filename}"
+    file_base = "${output_dir}/${filename}"
   []
   [./csv]
     type = CSV
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/HomRect/exodus/${filename}"
+    file_base = "${output_dir}/${filename}"
   []
   console = true
 []

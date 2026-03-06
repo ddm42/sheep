@@ -11,6 +11,7 @@
 #   my_dt     - timestep (s)
 #   end_time  - simulation end time (s)
 #   suffix    - output filename suffix for convergence runs
+#   data_dir  - base data directory (mesh from data_dir/Cubit/, output to data_dir/Lesion_25_9/exodus/)
 ###############################################################################
 
 # -------------------------
@@ -21,6 +22,11 @@ filename = "Lesion_h2.50mm"
 
 # Output suffix (empty by default; set from CLI for convergence runs)
 suffix = ''
+
+# Data directory (override from CLI for different machines)
+data_dir = '/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED'
+output_dir = '${data_dir}/Lesion_25_9/exodus'
+mesh_dir = '${data_dir}/Cubit'
 
 # Basic material constants (human-friendly input)
 nu = 0.49
@@ -69,7 +75,7 @@ refine = 2
 [Mesh]
   [file]
     type = FileMeshGenerator
-    file = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Cubit/${filename}.e"
+    file = "${mesh_dir}/${filename}.e"
   []
   construct_side_list_from_node_list = true
   uniform_refine = ${refine}
@@ -309,11 +315,11 @@ refine = 2
   append_date = true
   [./exodus]
     type = Exodus
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion_25_9/exodus/${filename}${suffix}"
+    file_base = "${output_dir}/${filename}${suffix}"
   []
   [./csv]
     type = CSV
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion_25_9/exodus/${filename}${suffix}"
+    file_base = "${output_dir}/${filename}${suffix}"
   []
   console = true
 []

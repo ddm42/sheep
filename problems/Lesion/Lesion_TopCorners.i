@@ -18,6 +18,7 @@
 #   end_time - simulation end time (s)
 #   filename - output file base name
 #   suffix   - output filename suffix
+#   data_dir - base data directory (output goes to data_dir/Lesion_TopCorners/exodus/)
 ###############################################################################
 
 # -------------------------
@@ -33,6 +34,10 @@ filename = "Lesion_TopCorners"
 
 # Output suffix (empty by default; set from CLI for convergence runs)
 suffix = ''
+
+# Data directory (override from CLI for different machines)
+data_dir = '/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED'
+output_dir = '${data_dir}/Lesion_TopCorners/exodus'
 
 # -------------------------
 # Material constants
@@ -367,11 +372,11 @@ end_time = 20e-3                       # simulation end time (s)
   append_date = true
   [./exodus]
     type = Exodus
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion_TopCorners/exodus/${filename}${suffix}"
+    file_base = "${output_dir}/${filename}${suffix}"
   []
   [./csv]
     type = CSV
-    file_base = "/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/Lesion_TopCorners/exodus/${filename}${suffix}"
+    file_base = "${output_dir}/${filename}${suffix}"
   []
   console = true
 []

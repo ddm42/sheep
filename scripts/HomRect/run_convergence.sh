@@ -13,64 +13,81 @@
 # Initialize conda
 source ~/miniforge/etc/profile.d/conda.sh && conda activate moose
 
-# Paths
-SHEEP_EXE="/Users/ddm42/projects/sheep/sheep-opt"
-INPUT_FILE="/Users/ddm42/projects/sheep/problems/HomRect/HomRect.i"
-OUTPUT_DIR="/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED/HomRect/exodus"
-NUM_PROCS=6
+# Source config
+REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+CONFIG="${SHEEP_CONFIG:-$REPO_DIR/config.sh}"
+if [ ! -f "$CONFIG" ]; then
+    echo "Error: config.sh not found. Create it from the template:"
+    echo "  cp config_temp.sh config.sh"
+    exit 1
+fi
+source "$CONFIG"
 
-# Create output directory if needed
-mkdir -p "$OUTPUT_DIR"
+INPUT_FILE="$REPO_DIR/problems/HomRect/HomRect.i"
+OUTPUT_DIR="$DATA_DIR/HomRect/exodus"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_DIR="$SCRIPT_DIR/logs"
+
+mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
+
+timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
 # Refinement levels: nx | ny | h label (mm) for filename
 # Domain: 0.08 m (x) x 0.05 m (y); each level halves h
 NX_VALS=(   16       32       64       128      )
 NY_VALS=(   10       20       40       80       )
 LABELS=(    "5.00"   "2.50"   "1.25"   "0.625"  )
+TOTAL=${#NX_VALS[@]}
 
 # Fixed timestep for spatial convergence study
 DT="0.25e-3"
 
-echo "========================================="
-echo "HomRect Mesh Refinement Convergence Study"
-echo "========================================="
+echo "[$(timestamp)] HomRect Mesh Refinement Convergence Study"
 echo "  Timestep (fixed): dt = ${DT} s"
 echo "  Output dir: ${OUTPUT_DIR}"
-echo ""
+echo "  Log dir: ${LOG_DIR}"
+echo "  Runs: ${TOTAL} refinement levels"
 
 # Allow running a single level: ./run_convergence.sh <level>
 if [ -n "$1" ]; then
     START=$1; END=$1
 else
-    START=0; END=$(( ${#NX_VALS[@]} - 1 ))
+    START=0; END=$(( TOTAL - 1 ))
 fi
+
+SECONDS=0
 
 for i in $(seq $START $END); do
     nx=${NX_VALS[$i]}
     ny=${NY_VALS[$i]}
     label=${LABELS[$i]}
     filename="HomRect_h${label}mm"
+    RUN_LOG="$LOG_DIR/${filename}.log"
 
-    echo "-----------------------------------------"
-    echo "Run $((i+1))/${#NX_VALS[@]}: h = ${label} mm, nx = ${nx}, ny = ${ny}"
-    echo "Filename: ${filename}"
-    echo "-----------------------------------------"
+    echo ""
+    echo "[$(timestamp)] === Run $((i+1))/${TOTAL}: h = ${label} mm (nx=${nx}, ny=${ny}, dt=${DT}) ==="
+    echo "  MOOSE log: ${RUN_LOG}"
+
+    RUN_SECONDS=$SECONDS
 
     mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
-        nx="$nx" ny="$ny" my_dt="$DT" filename="$filename" -w
+        nx="$nx" ny="$ny" my_dt="$DT" filename="$filename" \
+        data_dir="$DATA_DIR" > "$RUN_LOG" 2>&1
 
-    if [ $? -eq 0 ]; then
-        echo "SUCCESS: ${filename}"
+    EXIT_CODE=$?
+    ELAPSED=$(( SECONDS - RUN_SECONDS ))
+    ELAPSED_MIN=$(awk "BEGIN {printf \"%.1f\", $ELAPSED/60}")
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "[$(timestamp)] PASS: ${filename} (${ELAPSED_MIN} min)"
     else
-        echo "FAILED: ${filename}"
+        echo "[$(timestamp)] FAIL: ${filename} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
     fi
-    echo ""
 done
 
-echo "========================================="
-echo "All runs completed!"
-echo "========================================="
+TOTAL_MIN=$(awk "BEGIN {printf \"%.1f\", $SECONDS/60}")
 echo ""
-echo "To extract convergence data (avg_disp_y at t = 6 ms):"
-echo "  Look in CSV files at: ${OUTPUT_DIR}/HomRect_h*.csv"
-echo "  Find the row where 'time' = 0.006 and read the 'avg_disp_y' column."
+echo "[$(timestamp)] All runs completed. Total walltime: ${TOTAL_MIN} min"
+echo ""
+echo "CSV files at: ${OUTPUT_DIR}/HomRect_h*.csv"
+echo "MOOSE logs at: ${LOG_DIR}/HomRect_h*.log"
