@@ -1,10 +1,9 @@
 ###############################################################################
-# Lesion_TopRight.i -- Soft lesion in top-right corner, MOOSE-generated mesh
-# GeneratedMeshGenerator (TRI6) + ParsedSubdomainMeshGenerator for ellipse
+# Lesion_TopRight.i -- Soft lesion in top-right corner, conformal TRI6 mesh
+# XYDelaunayGenerator with ParsedCurveGenerator for body-fitted ellipse
 #
 # Domain: x in [-0.04, 0.04], y in [0.0, 0.05]  (80 x 50 mm)
-# Note: uses x-y plane (dim=2) rather than x-z plane as in the Cubit meshes.
-#       All physics are identical -- just a coordinate relabeling (z -> y).
+# Uses x-y plane (dim=2).
 #
 # Lesion: rotated ellipse centered at (x,y) = (15, 20) mm
 #         x semi-axis a = 5 mm, y semi-axis b = 2.5 mm, rotated 45 deg CCW
@@ -12,8 +11,8 @@
 # ARF push: x_center = -10 mm (unchanged from other Lesion problems)
 #
 # Overridable from command line:
-#   nx, ny   - mesh resolution (integers; base = 32 x 20 for h ~ 2.5 mm)
-#   refine   - uniform_refine level (0=base mesh, 1=halved, etc.)
+#   desired_area - max triangle area (controls element size; default ~ h=0.625mm)
+#   n_ellipse    - number of segments on ellipse boundary
 #   my_dt    - timestep (s)
 #   end_time - simulation end time (s)
 #   filename - output file base name
@@ -23,8 +22,10 @@
 # -------------------------
 # Mesh resolution (override from command line)
 # -------------------------
-nx = 32                               # elements in x direction (default: h ~ 2.5 mm)
-ny = 20                               # elements in y direction
+# desired_area controls element size: area ~ h^2 * sqrt(3)/4
+# h=0.625mm -> area ~ 1.69e-7 m^2
+desired_area = 1.7e-7
+n_ellipse = 40                         # segments on ellipse boundary
 
 # File naming (can be overridden from command line)
 filename = "Lesion_TopRight"
@@ -68,37 +69,60 @@ y_max_f = 0.035                        # maximum y-coordinate of force region (m
 my_dt = 0.0625e-3                      # timestep (s) -- sub-percent error at f_max=1500 Hz
 end_time = 20e-3                       # simulation end time (s)
 
-# Default mesh refinement for production (refine=2 on base -> effective h~0.625mm)
-refine = 2
-
 # -------------------------
-# Mesh: GeneratedMeshGenerator (TRI6) + ParsedSubdomainMeshGenerator for ellipse
+# Mesh: Conformal TRI6 via XYDelaunayGenerator with body-fitted ellipse
 # -------------------------
 [GlobalParams]
   displacements = 'disp_x disp_y'
 []
 
 [Mesh]
-  [gen]
-    type = GeneratedMeshGenerator
-    dim = 2
-    elem_type = TRI6
-    nx = ${nx}
-    ny = ${ny}
-    xmin = -0.04
-    xmax = 0.04
-    ymin = 0.0
-    ymax = 0.05
+  # Rectangular outer boundary (CCW)
+  [rect]
+    type = PolyLineMeshGenerator
+    points = '-0.04  0.0  0.0
+              0.04  0.0  0.0
+              0.04  0.05 0.0
+             -0.04  0.05 0.0'
+    loop = true
   []
-  [lesion]
-    type = ParsedSubdomainMeshGenerator
-    input = gen
-    combinatorial_geometry = '(((x-cx)*ct+(y-cy)*st)/a)^2 + ((-(x-cx)*st+(y-cy)*ct)/b)^2 <= 1.0'
-    constant_names       = 'cx     cy     a      b       theta             ct          st'
-    constant_expressions = '0.015  0.020  0.005  0.0025  0.7853981633975  cos(theta)  sin(theta)'
-    block_id = 2
+
+  # Ellipse boundary as closed curve (rotated 45 deg CCW)
+  # cx=15mm, cy=20mm, a=5mm, b=2.5mm, theta=45deg
+  # ct = cos(45deg) = 0.7071067811865, st = sin(45deg) = 0.7071067811865
+  [ellipse]
+    type = ParsedCurveGenerator
+    x_formula = '0.015 + 0.005*cos(t)*0.7071067811865 - 0.0025*sin(t)*0.7071067811865'
+    y_formula = '0.020 + 0.005*cos(t)*0.7071067811865 + 0.0025*sin(t)*0.7071067811865'
+    section_bounding_t_values = '0.0 6.283185307'
+    nums_segments = '${n_ellipse}'
+    is_closed_loop = true
   []
-  uniform_refine = ${refine}
+
+  # Triangulate the ellipse interior (lesion block)
+  [ellipse_tri]
+    type = XYDelaunayGenerator
+    boundary = 'ellipse'
+    desired_area = ${desired_area}
+    output_subdomain_name = 'lesion'
+    output_boundary = 'ellipse_boundary'
+    tri_element_type = TRI6
+    smooth_triangulation = true
+  []
+
+  # Triangulate the background with ellipse as a stitched hole
+  [domain]
+    type = XYDelaunayGenerator
+    boundary = 'rect'
+    holes = 'ellipse_tri'
+    stitch_holes = 'true'
+    refine_holes = 'false'
+    desired_area = ${desired_area}
+    output_subdomain_name = 'background'
+    output_boundary = 'outer'
+    tri_element_type = TRI6
+    smooth_triangulation = true
+  []
 []
 
 [Functions]
@@ -122,40 +146,40 @@ refine = 2
 []
 
 [Materials]
-  # Base (B) - block 0 (GeneratedMeshGenerator default)
+  # Base (B) - 'background' block
   [./elasticity_B]
     type = ComputeIsotropicElasticityTensor
     youngs_modulus = ${E_B}
     poissons_ratio = ${nu}
-    block = 0
+    block = background
   []
   [./stress_B]
     type = ComputeLinearElasticStress
-    block = 0
+    block = background
   []
   [./density_B]
     type = GenericConstantMaterial
     prop_names  = 'density'
     prop_values = ${rho}
-    block = 0
+    block = background
   []
 
-  # Lesion (L) - block 2 (assigned by ParsedSubdomainMeshGenerator)
+  # Lesion (L) - 'lesion' block
   [./elasticity_L]
     type = ComputeIsotropicElasticityTensor
     youngs_modulus = ${E_L}
     poissons_ratio = ${nu}
-    block = 2
+    block = lesion
   []
   [./stress_L]
     type = ComputeLinearElasticStress
-    block = 2
+    block = lesion
   []
   [./density_L]
     type = GenericConstantMaterial
     prop_names  = 'density'
     prop_values = ${rho}
-    block = 2
+    block = lesion
   []
 
   # Strain energy density material for both blocks
@@ -227,61 +251,16 @@ refine = 2
 []
 
 [BCs]
-  # Homogeneous Dirichlet BCs on all edges
-  # GeneratedMeshGenerator dim=2 boundaries: bottom, right, top, left
-
-  # bottom (y = ymin)
-  [./fix_bottom_x]
+  # Homogeneous Dirichlet BCs on all outer edges
+  [./fix_outer_x]
     type = DirichletBC
-    boundary = bottom
+    boundary = outer
     variable = disp_x
     value = 0.0
   []
-  [./fix_bottom_y]
+  [./fix_outer_y]
     type = DirichletBC
-    boundary = bottom
-    variable = disp_y
-    value = 0.0
-  []
-
-  # right (x = xmax)
-  [./fix_right_x]
-    type = DirichletBC
-    boundary = right
-    variable = disp_x
-    value = 0.0
-  []
-  [./fix_right_y]
-    type = DirichletBC
-    boundary = right
-    variable = disp_y
-    value = 0.0
-  []
-
-  # top (y = ymax)
-  [./fix_top_x]
-    type = DirichletBC
-    boundary = top
-    variable = disp_x
-    value = 0.0
-  []
-  [./fix_top_y]
-    type = DirichletBC
-    boundary = top
-    variable = disp_y
-    value = 0.0
-  []
-
-  # left (x = xmin)
-  [./fix_left_x]
-    type = DirichletBC
-    boundary = left
-    variable = disp_x
-    value = 0.0
-  []
-  [./fix_left_y]
-    type = DirichletBC
-    boundary = left
+    boundary = outer
     variable = disp_y
     value = 0.0
   []

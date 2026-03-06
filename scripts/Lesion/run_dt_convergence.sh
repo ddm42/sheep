@@ -2,17 +2,18 @@
 ###############################################################################
 # run_dt_convergence.sh -- Timestep convergence study for Lesion problems
 #
-# Fixed mesh: Lesion_h2.50mm.e with uniform_refine=2 (h ~ 0.625mm)
-# Varies dt in halving steps.
-# Convergence metrics: strain_energy, disp_z at 4 sample points (from CSV).
+# Supports two mesh types:
+#   - Conformal (XYDelaunayGenerator): uses desired_area + n_ellipse
+#   - Structured (GeneratedMeshGenerator): uses refine level
+# Auto-detected from the input file. Fixed mesh at production resolution.
 #
-# Physics: c_s_B = 5.0 m/s, f_max = 1500 Hz
-# dt levels chosen to span 5-43 samples/period at f_max.
+# Varies dt in halving steps.
+# Convergence metrics: strain_energy, avg_disp_y (from CSV postprocessors).
 #
 # Usage:
-#   ./run_dt_convergence.sh                          # Lesion-DirBC, all levels
-#   ./run_dt_convergence.sh /path/to/Lesion_25_9.i   # different problem, all levels
-#   ./run_dt_convergence.sh /path/to/Lesion_25_9.i 2 # different problem, level 2 only
+#   ./run_dt_convergence.sh                              # Lesion-DirBC, all levels
+#   ./run_dt_convergence.sh /path/to/Lesion_TopRight.i   # conformal mesh problem
+#   ./run_dt_convergence.sh /path/to/problem.i 2         # single level only
 ###############################################################################
 
 # Initialize conda
@@ -40,7 +41,13 @@ mkdir -p "$OUTPUT_DIR"
 
 # Derive base mesh name from the .i file's 'filename' default
 BASE_MESH=$(grep '^filename' "$INPUT_FILE" | head -1 | sed 's/.*= *"\(.*\)".*/\1/')
-REFINE=2
+
+# Detect mesh type: conformal (desired_area) vs structured (refine/nx/ny)
+if grep -q '^desired_area' "$INPUT_FILE"; then
+    MESH_TYPE="conformal"
+else
+    MESH_TYPE="structured"
+fi
 
 # End time
 END_TIME="10e-3"
@@ -53,12 +60,24 @@ echo "================================================="
 echo "${PROBLEM_NAME} Timestep Convergence Study"
 echo "================================================="
 echo "  Input file: ${INPUT_FILE}"
-echo "  Fixed mesh: ${BASE_MESH} + refine=${REFINE} (h~0.625mm)"
+echo "  Mesh type: ${MESH_TYPE}"
 echo "  End time: ${END_TIME} s"
 echo "  Output dir: ${OUTPUT_DIR}"
+
+# Build the fixed-mesh CLI args based on mesh type
+if [ "$MESH_TYPE" = "conformal" ]; then
+    # Production resolution for conformal mesh: h ~ 0.625mm
+    MESH_ARGS="desired_area=1.7e-7 n_ellipse=40"
+    echo "  Fixed mesh: desired_area=1.7e-7, n_ellipse=40 (h~0.625mm)"
+else
+    # Production resolution for structured mesh: refine=2
+    REFINE=2
+    MESH_ARGS="refine=$REFINE"
+    echo "  Fixed mesh: ${BASE_MESH} + refine=${REFINE} (h~0.625mm)"
+fi
 echo ""
 
-# Allow running a single level: ./run_dt_convergence.sh <input_file> <level>
+# Allow running a single level
 if [ -n "$2" ]; then
     START=$2; END=$2
 else
@@ -76,7 +95,7 @@ for i in $(seq $START $END); do
     echo "-----------------------------------------"
 
     mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
-        filename="$BASE_MESH" refine="$REFINE" my_dt="$dt" \
+        filename="$BASE_MESH" $MESH_ARGS my_dt="$dt" \
         end_time="$END_TIME" suffix="$suffix" -w
 
     if [ $? -eq 0 ]; then
