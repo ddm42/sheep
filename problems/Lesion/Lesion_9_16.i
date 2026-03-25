@@ -18,10 +18,10 @@
 # Top-level parameter definitions (evaluated before the rest of the file)
 # -------------------------
 # File naming (can be overridden from command line)
-filename = "Lesion_h2.50mm"
+filename = "Lesion_h.625mm"
 
 # Output suffix (empty by default; set from CLI for convergence runs)
-suffix = ''
+suffix = '_noRefine'
 
 # Data directory (override from CLI for different machines)
 data_dir = '/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED'
@@ -63,7 +63,7 @@ my_dt = 0.0625e-3                      # timestep (s) — sub-percent error at f
 end_time = 16e-3                       # simulation end time (s) — just before first x-reflection enters imaging domain at ~16.7 ms
 
 # Default mesh refinement for production (refine=2 on h2.50mm base -> effective h~0.625mm)
-refine = 2
+refine = 0
 
 # -------------------------
 # Mesh and physics
