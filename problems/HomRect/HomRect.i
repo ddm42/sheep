@@ -25,10 +25,13 @@ ny = 20                               # elements in y direction
 my_dt = 0.25e-3                       # timestep (s), default 0.25 ms
 
 # Simulation end time
-end_time = 20e-3                      # 15 ms (same as Lesion-DirBC.i)
+end_time = 20e-3                      # 20 ms
 
 # Output filename (include h in name; override from CLI)
 filename = 'HomRect_h2.50mm'
+
+# Output suffix (empty by default; set from CLI for convergence runs)
+suffix = ''
 
 # Data directory (override from CLI for different machines)
 data_dir = '/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED'
@@ -39,8 +42,10 @@ output_dir = '${data_dir}/HomRect/exodus'
 # -------------------------
 nu = 0.49
 rho = 1000.0                          # kg/m^3
-mu_B = 25000.0                        # shear modulus (Pa)
+mu_B = 16000.0                        # shear modulus (Pa)
 E_B = ${fparse 2.0 * mu_B * (1.0 + nu)}
+
+# Shear wave speed: c_s = sqrt(mu_B / rho) = sqrt(16000/1000) = 4.0 m/s
 
 # Newmark time integration
 newmark_beta = 0.25
@@ -292,13 +297,14 @@ y_max = 0.05
 []
 
 [Outputs]
+  append_date = true
   [./exodus]
     type = Exodus
-    file_base = "${output_dir}/${filename}"
+    file_base = "${output_dir}/${filename}${suffix}"
   []
   [./csv]
     type = CSV
-    file_base = "${output_dir}/${filename}"
+    file_base = "${output_dir}/${filename}${suffix}"
   []
   console = true
 []
