@@ -3,7 +3,7 @@
 # run_convergence.sh -- Mesh refinement convergence study for HomRect
 #
 # Runs HomRect.i with progressively finer element sizes.
-# Convergence metric: avg_disp_y at t = 6 ms (from CSV output).
+# Convergence metric: displacement L2-in-time error (from CSV output).
 #
 # Usage:
 #   ./run_convergence.sh            # run all refinement levels
@@ -40,10 +40,12 @@ LABELS=(    "5.00"   "2.50"   "1.25"   "0.625"  )
 TOTAL=${#NX_VALS[@]}
 
 # Fixed timestep for spatial convergence study
-DT="0.25e-3"
+DT="0.03125e-3"
+END_TIME="10e-3"
 
 echo "[$(timestamp)] HomRect Mesh Refinement Convergence Study"
 echo "  Timestep (fixed): dt = ${DT} s"
+echo "  End time: ${END_TIME} s"
 echo "  Output dir: ${OUTPUT_DIR}"
 echo "  Log dir: ${LOG_DIR}"
 echo "  Runs: ${TOTAL} refinement levels"
@@ -61,8 +63,8 @@ for i in $(seq $START $END); do
     nx=${NX_VALS[$i]}
     ny=${NY_VALS[$i]}
     label=${LABELS[$i]}
-    filename="HomRect_h${label}mm"
-    RUN_LOG="$LOG_DIR/${filename}.log"
+    suffix="_h${label}mm"
+    RUN_LOG="$LOG_DIR/HomRect${suffix}.log"
 
     echo ""
     echo "[$(timestamp)] === Run $((i+1))/${TOTAL}: h = ${label} mm (nx=${nx}, ny=${ny}, dt=${DT}) ==="
@@ -71,7 +73,8 @@ for i in $(seq $START $END); do
     RUN_SECONDS=$SECONDS
 
     mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
-        nx="$nx" ny="$ny" my_dt="$DT" filename="$filename" \
+        nx="$nx" ny="$ny" my_dt="$DT" end_time="$END_TIME" \
+        filename="HomRect" suffix="$suffix" \
         data_dir="$DATA_DIR" > "$RUN_LOG" 2>&1
 
     EXIT_CODE=$?
@@ -79,9 +82,9 @@ for i in $(seq $START $END); do
     ELAPSED_MIN=$(awk "BEGIN {printf \"%.1f\", $ELAPSED/60}")
 
     if [ $EXIT_CODE -eq 0 ]; then
-        echo "[$(timestamp)] PASS: ${filename} (${ELAPSED_MIN} min)"
+        echo "[$(timestamp)] PASS: HomRect${suffix} (${ELAPSED_MIN} min)"
     else
-        echo "[$(timestamp)] FAIL: ${filename} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
+        echo "[$(timestamp)] FAIL: HomRect${suffix} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
     fi
 done
 

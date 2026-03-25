@@ -37,13 +37,17 @@ timestamp() { date '+%Y-%m-%d %H:%M:%S'; }
 NX=64
 NY=40
 
+# End time (match spatial convergence study)
+END_TIME="10e-3"
+
 # Timestep levels (halving each time)
-DT_VALS=(   "0.50e-3"   "0.25e-3"   "0.125e-3"   "0.0625e-3"  )
-LABELS=(    "dt0.500ms"  "dt0.250ms"  "dt0.125ms"   "dt0.0625ms" )
+DT_VALS=(   "0.125e-3"    "0.0625e-3"    "0.03125e-3"    "0.015625e-3"  )
+LABELS=(    "dt0.125ms"    "dt0.0625ms"   "dt0.03125ms"   "dt0.015625ms" )
 TOTAL=${#DT_VALS[@]}
 
 echo "[$(timestamp)] HomRect Timestep Convergence Study"
 echo "  Fixed mesh: nx=${NX}, ny=${NY} (h=1.25mm)"
+echo "  End time: ${END_TIME} s"
 echo "  Output dir: ${OUTPUT_DIR}"
 echo "  Log dir: ${LOG_DIR}"
 echo "  Runs: ${TOTAL} timestep levels"
@@ -60,8 +64,8 @@ SECONDS=0
 for i in $(seq $START $END); do
     dt=${DT_VALS[$i]}
     label=${LABELS[$i]}
-    filename="HomRect_h1.25mm_${label}"
-    RUN_LOG="$LOG_DIR/${filename}.log"
+    suffix="_h1.25mm_${label}"
+    RUN_LOG="$LOG_DIR/HomRect${suffix}.log"
 
     echo ""
     echo "[$(timestamp)] === Run $((i+1))/${TOTAL}: dt = ${dt} s (nx=${NX}, ny=${NY}) ==="
@@ -70,7 +74,8 @@ for i in $(seq $START $END); do
     RUN_SECONDS=$SECONDS
 
     mpiexec -n $NUM_PROCS "$SHEEP_EXE" -i "$INPUT_FILE" \
-        nx="$NX" ny="$NY" my_dt="$dt" filename="$filename" \
+        nx="$NX" ny="$NY" my_dt="$dt" end_time="$END_TIME" \
+        filename="HomRect" suffix="$suffix" \
         data_dir="$DATA_DIR" > "$RUN_LOG" 2>&1
 
     EXIT_CODE=$?
@@ -78,9 +83,9 @@ for i in $(seq $START $END); do
     ELAPSED_MIN=$(awk "BEGIN {printf \"%.1f\", $ELAPSED/60}")
 
     if [ $EXIT_CODE -eq 0 ]; then
-        echo "[$(timestamp)] PASS: ${filename} (${ELAPSED_MIN} min)"
+        echo "[$(timestamp)] PASS: HomRect${suffix} (${ELAPSED_MIN} min)"
     else
-        echo "[$(timestamp)] FAIL: ${filename} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
+        echo "[$(timestamp)] FAIL: HomRect${suffix} (exit code ${EXIT_CODE}, ${ELAPSED_MIN} min)"
     fi
 done
 
