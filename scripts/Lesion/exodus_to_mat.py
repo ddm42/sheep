@@ -29,7 +29,7 @@ import scipy.io
 # Format: [start, end, num_samples]
 x_sample = [-0.02, 0.02, 401]       # x range and number of points
 yz_sample = [0.015, 0.035, 201]     # y/z range and number of points (auto-detected)
-t_sample = [0.0, 0.035, 141]        # time range and number of points
+t_sample = [0.0, 0.035, 561]        # time range and number of points (dt = 6.25e-5 s, 16 kHz)
 
 # Field to extract — auto-detected from mesh orientation (disp_y for x-y, disp_z for x-z)
 field_name = None
