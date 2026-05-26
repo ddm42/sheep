@@ -42,10 +42,10 @@ output_dir = '${data_dir}/HomRect/exodus'
 # -------------------------
 nu = 0.49
 rho = 1000.0                          # kg/m^3
-mu_B = 16000.0                        # shear modulus (Pa)
+mu_B = 25000.0                        # shear modulus (Pa)
 E_B = ${fparse 2.0 * mu_B * (1.0 + nu)}
 
-# Shear wave speed: c_s = sqrt(mu_B / rho) = sqrt(16000/1000) = 4.0 m/s
+# Shear wave speed: c_s = sqrt(mu_B / rho) = sqrt(25000/1000) = 5.0 m/s
 
 # Newmark time integration
 newmark_beta = 0.25

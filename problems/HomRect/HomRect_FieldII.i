@@ -21,10 +21,12 @@
 ###############################################################################
 
 # -------------------------
-# Mesh resolution (matches Lesion_25_9 effective h = 0.625 mm)
+# Mesh resolution (h = 0.25 mm — refined from 0.625 mm so the element-scale
+# shear-wave frequency c_s/h ≈ 20 kHz sits above the 200 us rect pulse's
+# broadband content, suppressing element-scale spurious modes)
 # -------------------------
-nx = 128
-ny = 80
+nx = 320
+ny = 200
 
 # Time stepping — adaptive (FunctionDT below):
 #   dt = dt_impulse during [0, t_cutover) to resolve the 200 us rectangular pulse
@@ -35,7 +37,7 @@ t_cutover  = 500e-6                     # 2.5 x pulse duration (200 us pulse + 3
 end_time   = 20e-3
 
 # Output filename
-filename = 'HomRect_FieldII_h0.625mm'
+filename = 'HomRect_FieldII_h0.25mm'
 suffix = ''
 
 # Data directory
@@ -51,7 +53,7 @@ arf_file     = 'arf_field_x-10mm_FN2_xy.txt'
 # -------------------------
 nu = 0.49
 rho = 1000.0
-mu_B = 16000.0
+mu_B = 25000.0
 E_B = ${fparse 2.0 * mu_B * (1.0 + nu)}
 
 newmark_beta = 0.25
