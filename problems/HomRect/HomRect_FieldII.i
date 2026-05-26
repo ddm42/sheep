@@ -1,74 +1,73 @@
 ###############################################################################
-# HomRect.i -- Homogeneous rectangle with Dirichlet BCs on all edges
-# For mesh refinement / timestep convergence studies
-# Based on Lesion-DirBC.i with GeneratedMeshGenerator instead of file mesh
+# HomRect_FieldII.i -- HomRect with Field II ARF spatial profile
 #
-# Domain: x in [-0.04, 0.04], y in [0.0, 0.05]  (0.08 x 0.05 m)
-# Note: uses x-y plane (dim=2) rather than x-z plane as in the Cubit mesh.
-#       All physics are identical -- just a coordinate relabeling (z -> y).
+# Replaces the analytical Gaussian-in-x × boxcar-in-y body force with a
+# precomputed 2D ARF intensity field from Field II (gen_ARF_field.m),
+# multiplied by a 200 us rectangular temporal impulse (Vasconcelos 2021)
+# via CompositeFunction.
+#
+# Spatial field: ${arf_data_dir}/${arf_file} (PiecewiseMultilinear, axes
+# AXIS X / AXIS Y in meters, peak normalized to 1).
 #
 # Overridable from command line:
-#   nx, ny   - mesh resolution (integers; compute as 0.08/h and 0.05/h)
-#   my_dt    - timestep (s)
-#   end_time - simulation end time (s)
-#   filename - output file base name (include h in name for tracking)
-#   data_dir - base data directory (output goes to data_dir/HomRect/exodus/)
+#   nx, ny       - mesh resolution
+#   dt_impulse   - timestep during impulse (s)
+#   dt_post      - timestep after t_cutover (s)
+#   t_cutover    - time at which dt switches (s)
+#   end_time     - simulation end time (s)
+#   filename     - output file base name
+#   data_dir     - base data directory
+#   arf_file     - ARF spatial field filename (in ${arf_data_dir})
 ###############################################################################
 
 # -------------------------
-# Mesh resolution (override from command line)
+# Mesh resolution (matches Lesion_25_9 effective h = 0.625 mm)
 # -------------------------
-nx = 128                              # elements in x direction (h = 0.625 mm — matches Lesion_25_9 refine=2)
-ny = 80                               # elements in y direction (h = 0.625 mm)
+nx = 128
+ny = 80
 
-# Time stepping
-my_dt = 0.25e-3                       # timestep (s), default 0.25 ms
+# Time stepping — adaptive (FunctionDT below):
+#   dt = dt_impulse during [0, t_cutover) to resolve the 200 us rectangular pulse
+#   dt = dt_post    after t_cutover (free vibration; matches Lesion_25_9)
+dt_impulse = 0.01e-3                    # 10 us  -> 20 samples across the 200 us pulse
+dt_post    = 0.0625e-3                  # 62.5 us -> matches Lesion_25_9
+t_cutover  = 500e-6                     # 2.5 x pulse duration (200 us pulse + 300 us settling)
+end_time   = 20e-3
 
-# Simulation end time
-end_time = 20e-3                      # 20 ms
-
-# Output filename (include h in name; override from CLI)
-filename = 'HomRect_h0.625mm'
-
-# Output suffix (empty by default; set from CLI for convergence runs)
+# Output filename
+filename = 'HomRect_FieldII_h0.625mm'
 suffix = ''
 
-# Data directory (override from CLI for different machines)
+# Data directory
 data_dir = '/Users/ddm42/Google Drive/My Drive/1_Work-Duke-Research/Artery_Research/data/artery_OED'
-output_dir = '${data_dir}/HomRect/exodus'
+output_dir = '${data_dir}/HomRect_FieldII/exodus'
+
+# ARF spatial field
+arf_data_dir = '${data_dir}/ARF'
+arf_file     = 'arf_field_x-10mm_FN2_xy.txt'
 
 # -------------------------
-# Material constants (homogeneous -- base material only)
+# Material constants
 # -------------------------
 nu = 0.49
-rho = 1000.0                          # kg/m^3
-mu_B = 16000.0                        # shear modulus (Pa)
+rho = 1000.0
+mu_B = 16000.0
 E_B = ${fparse 2.0 * mu_B * (1.0 + nu)}
 
-# Shear wave speed: c_s = sqrt(mu_B / rho) = sqrt(16000/1000) = 4.0 m/s
-
-# Newmark time integration
 newmark_beta = 0.25
 newmark_gamma = 0.5
 
 # -------------------------
-# Impulse definition (body force, N/m^3)
+# Body force: unit peak (spatial field is peak-normalized to 1 in MATLAB)
 # -------------------------
-F0 = 400                              # peak body force magnitude
-t_imp = 1.0e-3                        # impulse duration (1 ms)
-
-# Body force spatial profile: Gaussian in x, boxcar in y
-# Gaussian is smooth and mesh-independent (no quadrature aliasing issues)
-sigma_f = 0.003                       # Gaussian std dev in x (m)
-x_center = -0.01                      # x-coordinate center of force region (m)
-y_min_f = 0.015                       # minimum y-coordinate of force region (m)
-y_max_f = 0.035                       # maximum y-coordinate of force region (m)
+F0    = 1.0
+t_imp = 200e-6                          # 200 us rectangular pulse (Vasconcelos)
 
 # Domain dimensions
 x_min = -0.04
-x_max = 0.04
-y_min = 0.0
-y_max = 0.05
+x_max =  0.04
+y_min =  0.0
+y_max =  0.05
 
 # -------------------------
 # Mesh and physics
@@ -91,12 +90,25 @@ y_max = 0.05
 []
 
 [Functions]
-  [./body_masked_time]
+  [arf_spatial]
+    type = PiecewiseMultilinear
+    data_file = "${arf_data_dir}/${arf_file}"
+  []
+  [arf_temporal]
     type = ParsedFunction
-    # Gaussian in x, boxcar in y, half-sine in t
-    expression = 'if(t <= t_imp, exp(-((x - x_center)^2) / (2 * sigma_f^2)) * if(y >= y_min_f, if(y <= y_max_f, F0 * sin(pi * t / t_imp), 0), 0), 0)'
-    symbol_names = 't_imp F0 sigma_f x_center y_min_f y_max_f'
-    symbol_values = '${t_imp} ${F0} ${sigma_f} ${x_center} ${y_min_f} ${y_max_f}'
+    expression = 'if(t <= t_imp, F0, 0)'
+    symbol_names  = 't_imp F0'
+    symbol_values = '${t_imp} ${F0}'
+  []
+  [arf_body_force]
+    type = CompositeFunction
+    functions = 'arf_spatial arf_temporal'
+  []
+  [dt_function]
+    type = PiecewiseConstant
+    x = '0             ${t_cutover}'
+    y = '${dt_impulse} ${dt_post}'
+    direction = left
   []
 []
 
@@ -184,18 +196,14 @@ y_max = 0.05
 []
 
 [Kernels]
-  [./body_force_y_masked]
+  [./body_force_y]
     type = BodyForce
     variable = disp_y
-    function = body_masked_time
+    function = arf_body_force
   []
 []
 
 [BCs]
-  # Homogeneous Dirichlet BCs on all edges
-  # GeneratedMeshGenerator dim=2 boundaries: bottom, right, top, left
-
-  # bottom (y = y_min)
   [./fix_bottom_x]
     type = DirichletBC
     boundary = bottom
@@ -209,7 +217,6 @@ y_max = 0.05
     value = 0.0
   []
 
-  # right (x = x_max)
   [./fix_right_x]
     type = DirichletBC
     boundary = right
@@ -223,7 +230,6 @@ y_max = 0.05
     value = 0.0
   []
 
-  # top (y = y_max)
   [./fix_top_x]
     type = DirichletBC
     boundary = top
@@ -237,7 +243,6 @@ y_max = 0.05
     value = 0.0
   []
 
-  # left (x = x_min)
   [./fix_left_x]
     type = DirichletBC
     boundary = left
@@ -256,8 +261,11 @@ y_max = 0.05
   type = Transient
   start_time = 0.0
   end_time = ${end_time}
-  dt = ${my_dt}
   solve_type = 'PJFNK'
+  [TimeStepper]
+    type = FunctionDT
+    function = dt_function
+  []
 []
 
 [Postprocessors]
@@ -266,7 +274,6 @@ y_max = 0.05
     mat_prop = strain_energy_density
   []
 
-  # Sample disp_y at 4 points evenly spaced in the domain (quarter-points)
   [disp_y_pt1]
     type = PointValue
     variable = disp_y
@@ -288,7 +295,6 @@ y_max = 0.05
     point = '0.02 0.0375 0'
   []
 
-  # Average of the 4 sampled displacements
   [avg_disp_y]
     type = LinearCombinationPostprocessor
     pp_names = 'disp_y_pt1 disp_y_pt2 disp_y_pt3 disp_y_pt4'
