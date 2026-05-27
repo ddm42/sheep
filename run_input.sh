@@ -64,9 +64,19 @@ echo "  Overrides: $*"
 echo ""
 
 if [ "$FOREGROUND" = true ]; then
-    mpiexec -n "$NUM_PROCS" "$SHEEP_EXE" -i "$INPUT_FILE" \
-        data_dir="$DATA_DIR" "$@" \
-        > "$LOG_FILE" 2>&1
+    (
+        START_TIME=$(date +%s)
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Started: $PROBLEM_NAME"
+        mpiexec -n "$NUM_PROCS" "$SHEEP_EXE" -i "$INPUT_FILE" \
+            data_dir="$DATA_DIR" "$@"
+        RUN_EXIT=$?
+        ELAPSED=$(( $(date +%s) - START_TIME ))
+        printf '\n[%s] Finished: %s (exit code %d)\n' \
+            "$(date '+%Y-%m-%d %H:%M:%S')" "$PROBLEM_NAME" "$RUN_EXIT"
+        printf '  Walltime: %dh %dm %ds\n' \
+            "$(( ELAPSED / 3600 ))" "$(( (ELAPSED % 3600) / 60 ))" "$(( ELAPSED % 60 ))"
+        exit $RUN_EXIT
+    ) > "$LOG_FILE" 2>&1
 
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 0 ]; then
@@ -76,10 +86,29 @@ if [ "$FOREGROUND" = true ]; then
         echo "  Check log: $LOG_FILE"
     fi
 else
-    nohup mpiexec -n "$NUM_PROCS" "$SHEEP_EXE" -i "$INPUT_FILE" \
-        data_dir="$DATA_DIR" "$@" \
+    nohup bash -c '
+        START_TIME=$(date +%s)
+        echo "[$(date "+%Y-%m-%d %H:%M:%S")] Started: $4"
+        mpiexec -n "$1" "$2" -i "$3" data_dir="$5" "${@:6}" &
+        MPI_PID=$!
+        echo "  mpiexec PID: $MPI_PID"
+        # Forward SIGTERM (not SIGINT: async children inherit SIGINT ignored) so
+        # mpiexec tears down its ranks when the wrapper is killed.
+        trap "kill -TERM $MPI_PID 2>/dev/null" INT TERM
+        # wait returns 128+signum when interrupted by the trap; loop until the
+        # child is actually reaped so RUN_EXIT and the walltime reflect the real exit
+        wait $MPI_PID
+        RUN_EXIT=$?
+        while kill -0 $MPI_PID 2>/dev/null; do wait $MPI_PID; RUN_EXIT=$?; done
+        ELAPSED=$(( $(date +%s) - START_TIME ))
+        printf "\n[%s] Finished: %s (exit code %d)\n" \
+            "$(date "+%Y-%m-%d %H:%M:%S")" "$4" "$RUN_EXIT"
+        printf "  Walltime: %dh %dm %ds\n" \
+            "$(( ELAPSED / 3600 ))" "$(( (ELAPSED % 3600) / 60 ))" "$(( ELAPSED % 60 ))"
+    ' _ "$NUM_PROCS" "$SHEEP_EXE" "$INPUT_FILE" "$PROBLEM_NAME" "$DATA_DIR" "$@" \
         > "$LOG_FILE" 2>&1 &
 
-    echo "Running in background (PID $!)"
+    echo "Running in background (wrapper PID $!)"
     echo "  Monitor: tail -f $LOG_FILE"
+    echo "  Cancel:  kill $!   (forwards SIGTERM to mpiexec; walltime still logged)"
 fi
